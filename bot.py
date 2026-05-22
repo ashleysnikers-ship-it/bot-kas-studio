@@ -1,17 +1,15 @@
 import os
 import logging
+import threading
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
-    filters, ContextTypes
-)
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from database import init_db, simpan_transaksi, hitung_saldo, ambil_semua_transaksi
 from ocr import proses_struk
+from app import app as flask_app
 
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-
 logging.basicConfig(level=logging.INFO)
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -19,8 +17,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 Halo! Gua Bot Buku Kas Studio lu.\n\n"
         "📸 Kirim foto struk → langsung gua catat otomatis\n"
         "📊 /laporan → lihat ringkasan keuangan\n"
-        "📋 /riwayat → 5 transaksi terakhir\n"
-        "❓ /help → bantuan"
+        "📋 /riwayat → 5 transaksi terakhir"
     )
 
 async def cmd_laporan(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -40,21 +37,8 @@ async def cmd_riwayat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     pesan = "📋 *5 Transaksi Terakhir:*\n\n"
     for t in transaksi:
-        pesan += f"• {t[1]} | {t[2]}\n  {t[3][:40]}...\n  Rp {t[4]:,}\n\n"
+        pesan += f"• {t[1]} | {t[2]}\n  Rp {t[4]:,}\n\n"
     await update.message.reply_text(pesan, parse_mode="Markdown")
-
-async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📖 *Cara Pakai Bot:*\n\n"
-        "1. Foto struk belanja/pembayaran\n"
-        "2. Kirim ke bot ini\n"
-        "3. Bot otomatis baca & catat\n\n"
-        "📌 *Commands:*\n"
-        "/laporan - Ringkasan keuangan\n"
-        "/riwayat - 5 transaksi terakhir\n"
-        "/start - Pesan sambutan",
-        parse_mode="Markdown"
-    )
 
 async def handle_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳ Lagi baca struk, tunggu sebentar...")
@@ -68,8 +52,7 @@ async def handle_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data["nominal"] == 0:
         context.user_data["pending"] = data
         await update.message.reply_text(
-            "📸 Struk terbaca! Tapi nominal nggak kedeteksi.\n\n"
-            "Ketik nominalnya (contoh: 4500000):"
+            "📸 Struk terbaca! Tapi nominal nggak kedeteksi.\n\nKetik nominalnya (contoh: 4500000):"
         )
         return
     simpan_transaksi(data)
@@ -77,8 +60,7 @@ async def handle_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ *Struk berhasil dicatat!*\n\n"
         f"📅 Tanggal  : {data['tanggal']}\n"
         f"🏷️ Kategori : {data['kategori']}\n"
-        f"💵 Nominal  : Rp {data['nominal']:,}\n"
-        f"📝 Keterangan: {data['keterangan'][:60]}...",
+        f"💵 Nominal  : Rp {data['nominal']:,}",
         parse_mode="Markdown"
     )
 
@@ -99,16 +81,21 @@ async def handle_teks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("Ketik angka aja ya, contoh: 4500000")
 
+def jalanin_flask():
+    port = int(os.getenv("PORT", 5000))
+    flask_app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+
 def main():
     init_db()
+    t = threading.Thread(target=jalanin_flask, daemon=True)
+    t.start()
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("laporan", cmd_laporan))
     app.add_handler(CommandHandler("riwayat", cmd_riwayat))
-    app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(MessageHandler(filters.PHOTO, handle_foto))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_teks))
-    print("🤖 Bot berjalan... Tekan Ctrl+C untuk stop.")
+    print("🤖 Bot berjalan...")
     app.run_polling()
 
 if __name__ == "__main__":
