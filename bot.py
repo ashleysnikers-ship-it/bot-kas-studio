@@ -1,12 +1,12 @@
 import os
 import logging
+import threading
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     filters, ContextTypes, ConversationHandler
 )
-from flask import Flask, render_template, jsonify
-import threading
+from flask import Flask, jsonify, render_template
 from ocr import baca_nota_gambar, analisis_teks
 from database import init_db, simpan_transaksi, ambil_semua_transaksi, hitung_saldo
 
@@ -23,7 +23,10 @@ app_flask = Flask(__name__)
 
 @app_flask.route("/")
 def dashboard():
-    return render_template("dashboard.html")
+    try:
+        return render_template("dashboard.html")
+    except Exception:
+        return "<h1>Bot Kas Studio - Running</h1>", 200
 
 @app_flask.route("/api/laporan")
 def api_laporan():
@@ -35,14 +38,16 @@ def api_riwayat():
     hasil = []
     for r in rows[:20]:
         hasil.append({
-            "id": r[0],
-            "tanggal": r[1],
-            "kategori": r[2],
-            "keterangan": r[3],
-            "nominal": r[4],
-            "timestamp": r[5]
+            "id": r[0], "tanggal": r[1], "kategori": r[2],
+            "keterangan": r[3], "nominal": r[4], "timestamp": r[5]
         })
     return jsonify(hasil)
+
+def jalankan_flask():
+    port = int(os.environ.get("PORT", 5000))
+    # Matikan reloader & pakai threaded=False agar tidak konflik event loop
+    app_flask.run(host="0.0.0.0", port=port, debug=False,
+                  use_reloader=False, threaded=True)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -50,19 +55,13 @@ def format_rupiah(nominal):
     return f"Rp {int(nominal):,}".replace(",", ".")
 
 def buat_data_db(ai_result):
-    """
-    Konversi hasil AI ke format dict yang diterima database.py asli.
-    database.py pakai kategori: 'Pendapatan - X' atau 'Pengeluaran - X'
-    """
     from datetime import datetime
-    jenis = ai_result["jenis"]  # "PEMASUKAN" atau "PENGELUARAN"
+    jenis = ai_result["jenis"]
     kategori_ai = ai_result.get("kategori", "Umum")
-
     if jenis == "PEMASUKAN":
         kategori_db = f"Pendapatan - {kategori_ai}"
     else:
         kategori_db = f"Pengeluaran - {kategori_ai}"
-
     return {
         "tanggal": datetime.now().strftime("%Y-%m-%d"),
         "kategori": kategori_db,
@@ -84,8 +83,7 @@ def buat_pesan_konfirmasi(data):
 def keyboard_konfirmasi():
     return ReplyKeyboardMarkup(
         [["✅ Ya, Simpan", "❌ Batal"]],
-        one_time_keyboard=True,
-        resize_keyboard=True
+        one_time_keyboard=True, resize_keyboard=True
     )
 
 
@@ -112,17 +110,14 @@ async def bantuan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "❓ *Panduan Bot Kas Studio*\n\n"
         "*📸 Kirim Foto Nota:*\n"
         "Foto struk, nota, kuitansi apapun → AI baca otomatis\n\n"
-        "*✍️ Ketik Manual:*\n"
-        "Format bebas, contoh:\n"
+        "*✍️ Ketik Manual (format bebas):*\n"
         "• `beli tinta printer 45000`\n"
         "• `dp foto wedding 1jt`\n"
         "• `lunas foto keluarga 350rb`\n"
-        "• `bayar listrik 200000`\n"
-        "• `transfer masuk wisuda 500000`\n\n"
+        "• `bayar listrik 200000`\n\n"
         "*Singkatan:* rb/ribu=×1.000 · jt/juta=×1.000.000\n\n"
         "*Perintah:*\n"
-        "• /laporan → Ringkasan keuangan\n"
-        "• /riwayat → 5 transaksi terakhir",
+        "/laporan · /riwayat · /start",
         parse_mode="Markdown"
     )
 
@@ -148,13 +143,9 @@ async def riwayat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     pesan = "📋 *5 Transaksi Terakhir*\n\n"
     for r in rows[:5]:
-        # r = (id, tanggal, kategori, keterangan, nominal, timestamp)
         kategori = r[2]
         emoji = "💰" if "Pendapatan" in kategori else "💸"
-        pesan += (
-            f"{emoji} {r[3] or kategori}\n"
-            f"   {format_rupiah(r[4])} · {r[1]}\n\n"
-        )
+        pesan += f"{emoji} {r[3] or kategori}\n   {format_rupiah(r[4])} · {r[1]}\n\n"
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
 
@@ -165,12 +156,11 @@ async def terima_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
         photo = update.message.photo[-1]
         file = await context.bot.get_file(photo.file_id)
         image_bytes = await file.download_as_bytearray()
-
         result = baca_nota_gambar(bytes(image_bytes))
 
         if "error" in result:
             await update.message.reply_text(
-                f"⚠️ {result['error']}\n\nCoba ketik manual, contoh:\n`beli galon 5000`",
+                f"⚠️ {result['error']}\n\nCoba ketik manual:\n`beli galon 5000`",
                 parse_mode="Markdown"
             )
             return ConversationHandler.END
@@ -182,10 +172,9 @@ async def terima_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=keyboard_konfirmasi()
         )
         return MENUNGGU_KONFIRMASI
-
     except Exception as e:
         logger.error(f"Error foto: {e}")
-        await update.message.reply_text("❌ Error saat memproses foto. Coba lagi atau ketik manual.")
+        await update.message.reply_text("❌ Error memproses foto. Coba lagi atau ketik manual.")
         return ConversationHandler.END
 
 
@@ -198,7 +187,6 @@ async def terima_teks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤔 Menganalisis transaksi...")
     try:
         result = analisis_teks(teks)
-
         if "error" in result:
             await update.message.reply_text(f"⚠️ {result['error']}", parse_mode="Markdown")
             return ConversationHandler.END
@@ -210,7 +198,6 @@ async def terima_teks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=keyboard_konfirmasi()
         )
         return MENUNGGU_KONFIRMASI
-
     except Exception as e:
         logger.error(f"Error teks: {e}")
         await update.message.reply_text("❌ Terjadi error. Coba lagi ya.")
@@ -226,8 +213,7 @@ async def konfirmasi_simpan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Data tidak ditemukan. Coba ulang.")
             return ConversationHandler.END
         try:
-            data_db = buat_data_db(data_ai)
-            simpan_transaksi(data_db)
+            simpan_transaksi(buat_data_db(data_ai))
             emoji = "💰" if data_ai["jenis"] == "PEMASUKAN" else "💸"
             await update.message.reply_text(
                 f"{emoji} *Transaksi tersimpan!*\n\n"
@@ -241,10 +227,9 @@ async def konfirmasi_simpan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Gagal menyimpan. Coba lagi.")
     else:
         await update.message.reply_text(
-            "❌ Dibatalkan.\n\nKirim foto atau ketik transaksi baru.",
+            "❌ Dibatalkan. Kirim foto atau ketik transaksi baru.",
             reply_markup=ReplyKeyboardMarkup([[]], resize_keyboard=True)
         )
-
     context.user_data.pop("transaksi_pending", None)
     return ConversationHandler.END
 
@@ -255,10 +240,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
-def jalankan_flask():
-    port = int(os.environ.get("PORT", 5000))
-    app_flask.run(host="0.0.0.0", port=port)
-
 def main():
     token = os.environ.get("TELEGRAM_TOKEN")
     if not token:
@@ -266,11 +247,14 @@ def main():
     if not os.environ.get("GEMINI_API_KEY"):
         raise ValueError("GEMINI_API_KEY tidak ditemukan!")
 
-    init_db()  # pastikan tabel ada
+    init_db()
 
+    # Flask jalan di background thread
     flask_thread = threading.Thread(target=jalankan_flask, daemon=True)
     flask_thread.start()
+    logger.info("Flask thread started")
 
+    # Bot jalan di main thread (wajib untuk event loop asyncio)
     app = Application.builder().token(token).build()
 
     conv_handler = ConversationHandler(
@@ -292,7 +276,7 @@ def main():
     app.add_handler(CommandHandler("riwayat", riwayat))
     app.add_handler(conv_handler)
 
-    logger.info("Bot berjalan...")
+    logger.info("Bot polling dimulai...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
