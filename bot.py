@@ -7,7 +7,7 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     filters, ContextTypes
 )
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, send_from_directory
 from ocr import baca_nota_gambar, analisis_teks
 from database import init_db, simpan_transaksi, ambil_semua_transaksi, hitung_saldo
 
@@ -26,6 +26,10 @@ def dashboard():
         return render_template("dashboard.html")
     except Exception:
         return "<h1>Bot Kas Studio - Running</h1>", 200
+
+@app_flask.route("/lensera-finance.html")
+def lensera():
+    return send_from_directory('.', 'lensera-finance.html')
 
 @app_flask.route("/api/laporan")
 def api_laporan():
