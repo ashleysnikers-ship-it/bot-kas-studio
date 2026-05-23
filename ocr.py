@@ -96,11 +96,12 @@ def baca_nota_gambar(image_bytes):
 
 def analisis_teks(teks):
     try:
+        prompt = PROMPT_TEKS.replace("{teks}", teks)
         response = client.chat.completions.create(
             model=MODEL,
             messages=[{
                 "role": "user",
-                "content": PROMPT_TEKS.format(teks=teks)
+                "content": prompt
             }],
             max_tokens=200,
             temperature=0.1
