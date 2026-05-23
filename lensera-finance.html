@@ -664,6 +664,22 @@ header {
 .import-stat-lbl { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
 .btn.upload-btn { background: linear-gradient(135deg, rgba(74,158,255,0.15), rgba(74,158,255,0.05)); border-color: rgba(74,158,255,0.4); color: var(--blue); }
 .btn.upload-btn:hover { background: rgba(74,158,255,0.2); border-color: var(--blue); }
+
+.btn.danger-soft { color: var(--red); border-color: rgba(255,90,110,0.3); background: transparent; }
+.btn.danger-soft:hover { background: var(--red-dim); border-color: var(--red); }
+
+/* Reset Modal */
+.reset-modal-body { text-align: center; padding: 8px 0 16px; }
+.reset-modal-icon { font-size: 48px; margin-bottom: 16px; }
+.reset-modal-title { font-family: var(--head); font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--red); }
+.reset-modal-sub { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 20px; }
+.reset-checklist { text-align: left; background: var(--surface2); border-radius: 10px; padding: 14px 16px; margin-bottom: 20px; }
+.reset-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 13px; color: var(--text2); }
+.reset-item input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--red); cursor: pointer; flex-shrink: 0; }
+.reset-item label { cursor: pointer; }
+.reset-confirm-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text); font-family: var(--mono); font-size: 13px; outline: none; transition: border-color 0.2s; text-align: center; margin-bottom: 8px; }
+.reset-confirm-input:focus { border-color: var(--red); }
+.reset-confirm-hint { font-size: 11px; color: var(--text2); margin-bottom: 16px; }
 </style>
 </head>
 <body>
@@ -758,6 +774,7 @@ header {
           <input type="text" id="searchInput" placeholder="Cari klien, jenis foto..." oninput="renderTable()">
         </div>
         <button class="btn" onclick="exportCSV()">⬇ Export CSV</button>
+        <button class="btn danger-soft" onclick="openResetModal()">🗑️ Reset Data</button>
         <button class="btn primary" onclick="openModal()">+ Tambah</button>
       </div>
     </div>
@@ -1018,6 +1035,42 @@ header {
   </div>
 </div>
 
+
+
+<!-- MODAL RESET DATA -->
+<div class="modal-overlay" id="resetOverlay" onclick="if(event.target===this)closeResetModal()">
+  <div class="modal" style="max-width:480px">
+    <div class="reset-modal-body">
+      <div class="reset-modal-icon">⚠️</div>
+      <div class="reset-modal-title">Reset Data Transaksi</div>
+      <div class="reset-modal-sub">Pilih data yang ingin dihapus. Tindakan ini <strong>tidak bisa dibatalkan</strong>.</div>
+    </div>
+    <div class="reset-checklist">
+      <div class="reset-item">
+        <input type="checkbox" id="resetBot" checked>
+        <label for="resetBot">Data transaksi dari <strong>Bot Telegram</strong> (akan hilang sampai bot kirim data baru)</label>
+      </div>
+      <div class="reset-item">
+        <input type="checkbox" id="resetBank" checked>
+        <label for="resetBank">Data import <strong>Rekening Bank</strong> (yang di-upload manual)</label>
+      </div>
+      <div class="reset-item">
+        <input type="checkbox" id="resetPiutang">
+        <label for="resetPiutang">Data <strong>Piutang & DP</strong></label>
+      </div>
+      <div class="reset-item">
+        <input type="checkbox" id="resetAset">
+        <label for="resetAset">Data <strong>Aset Studio</strong></label>
+      </div>
+    </div>
+    <input type="text" class="reset-confirm-input" id="resetConfirmInput" placeholder="Ketik RESET untuk konfirmasi" oninput="checkResetConfirm()">
+    <div class="reset-confirm-hint">Ketik <strong>RESET</strong> (huruf kapital) untuk mengaktifkan tombol hapus</div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeResetModal()">Batal</button>
+      <button class="btn" id="resetConfirmBtn" style="background:var(--red-dim);color:var(--red);border-color:rgba(255,90,110,0.4);opacity:0.4;cursor:not-allowed" disabled onclick="doReset()">🗑️ Hapus Data</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL UPLOAD REKENING BANK -->
 <div class="modal-overlay" id="uploadOverlay" onclick="if(event.target===this)closeUploadModal()">
@@ -2202,7 +2255,76 @@ function doImport() {
   }, 300);
 }
 
-// Tombol hapus semua data import bank
+
+// ══════════════════════════════════════════════════
+// RESET DATA
+// ══════════════════════════════════════════════════
+function openResetModal() {
+  document.getElementById('resetConfirmInput').value = '';
+  document.getElementById('resetBot').checked = true;
+  document.getElementById('resetBank').checked = true;
+  document.getElementById('resetPiutang').checked = false;
+  document.getElementById('resetAset').checked = false;
+  checkResetConfirm();
+  document.getElementById('resetOverlay').classList.add('open');
+}
+function closeResetModal() { document.getElementById('resetOverlay').classList.remove('open'); }
+
+function checkResetConfirm() {
+  const val = document.getElementById('resetConfirmInput').value;
+  const btn = document.getElementById('resetConfirmBtn');
+  const ok = val === 'RESET';
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? '1' : '0.4';
+  btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+}
+
+function doReset() {
+  const resetBot = document.getElementById('resetBot').checked;
+  const resetBank = document.getElementById('resetBank').checked;
+  const resetPiutang = document.getElementById('resetPiutang').checked;
+  const resetAset = document.getElementById('resetAset').checked;
+
+  if (!resetBot && !resetBank && !resetPiutang && !resetAset) {
+    alert('Pilih minimal satu data yang ingin dihapus.');
+    return;
+  }
+
+  if (resetBank) localStorage.removeItem('lensera_imported');
+  if (resetPiutang) { localStorage.removeItem('lensera_piutang'); piutangList = []; }
+  if (resetAset) { localStorage.removeItem('lensera_aset'); asetList = []; }
+
+  closeResetModal();
+
+  // Reload data dari bot (otomatis tanpa bank import jika resetBank = true)
+  loadAll().then(() => {
+    if (resetBot) {
+      // Kosongkan transaksi dari bot juga (hanya di memori, bukan di bot)
+      // Bank import sudah dihapus dari localStorage di atas
+      transactions = resetBank ? [] : transactions;
+      transactions.sort((a,b) => new Date(b.tanggal) - new Date(a.tanggal));
+    }
+    initMonthSelect();
+    renderAll();
+
+    // Notif
+    const parts = [];
+    if (resetBot) parts.push('transaksi bot');
+    if (resetBank) parts.push('import rekening bank');
+    if (resetPiutang) parts.push('piutang & DP');
+    if (resetAset) parts.push('aset studio');
+
+    setTimeout(() => {
+      const nw = document.getElementById('notifWrap');
+      const n = document.createElement('div');
+      n.className = 'notif warn fade-in';
+      n.innerHTML = `<span>🗑️</span><div><strong>Data berhasil direset:</strong> ${parts.join(', ')}.</div>`;
+      nw.prepend(n);
+    }, 300);
+  });
+}
+
+// Tombol hapus semua data import bank (legacy)
 function clearBankImport() {
   if (!confirm('Hapus semua data import rekening bank?')) return;
   localStorage.removeItem('lensera_imported');
