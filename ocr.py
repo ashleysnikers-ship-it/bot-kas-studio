@@ -3,9 +3,8 @@ import json
 import re
 import google.generativeai as genai
 
-# Konfigurasi Gemini
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-1.5-flash-latest")
 
 PROMPT_GAMBAR = """
 Kamu adalah asisten keuangan studio foto yang bertugas membaca nota/struk/kuitansi.
@@ -74,7 +73,6 @@ Kalau tidak bisa dipahami sebagai transaksi keuangan, balas:
 
 
 def parse_response(text):
-    """Parse JSON response dari Gemini, toleran terhadap format aneh."""
     try:
         return json.loads(text.strip())
     except json.JSONDecodeError:
@@ -88,16 +86,11 @@ def parse_response(text):
 
 
 def baca_nota_gambar(image_bytes):
-    """
-    Baca nota dari gambar menggunakan Gemini Vision.
-    Menerima raw bytes, langsung dikirim ke Gemini tanpa Pillow.
-    """
     try:
-        # Kirim langsung sebagai inline data (tidak perlu Pillow)
         image_part = {
             "inline_data": {
                 "mime_type": "image/jpeg",
-                "data": image_bytes  # Gemini SDK menerima bytes langsung
+                "data": image_bytes
             }
         }
         response = model.generate_content([PROMPT_GAMBAR, image_part])
@@ -107,10 +100,6 @@ def baca_nota_gambar(image_bytes):
 
 
 def analisis_teks(teks):
-    """
-    Analisis teks input manual dari user.
-    Contoh: "beli galon 5000" → PENGELUARAN
-    """
     try:
         prompt = PROMPT_TEKS.format(teks=teks)
         response = model.generate_content(prompt)
