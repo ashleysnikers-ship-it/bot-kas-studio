@@ -1,6 +1,7 @@
 import os
 import logging
 import threading
+import html
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
@@ -45,7 +46,6 @@ def api_riwayat():
 
 def jalankan_flask():
     port = int(os.environ.get("PORT", 5000))
-    # Matikan reloader & pakai threaded=False agar tidak konflik event loop
     app_flask.run(host="0.0.0.0", port=port, debug=False,
                   use_reloader=False, threaded=True)
 
@@ -53,6 +53,10 @@ def jalankan_flask():
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def format_rupiah(nominal):
     return f"Rp {int(nominal):,}".replace(",", ".")
+
+def bersihkan(teks):
+    """Escape karakter HTML agar aman dikirim via Telegram HTML mode."""
+    return html.escape(str(teks))
 
 def buat_data_db(ai_result):
     from datetime import datetime
@@ -71,12 +75,13 @@ def buat_data_db(ai_result):
 
 def buat_pesan_konfirmasi(data):
     emoji = "💰" if data["jenis"] == "PEMASUKAN" else "💸"
+    # Pakai HTML parse_mode, escape semua teks dari AI
     return (
-        f"{emoji} *Transaksi Terdeteksi*\n\n"
-        f"Jenis    : *{data['jenis']}*\n"
-        f"Nominal  : *{format_rupiah(data['nominal'])}*\n"
-        f"Deskripsi: {data['deskripsi']}\n"
-        f"Kategori : {data['kategori']}\n\n"
+        f"{emoji} <b>Transaksi Terdeteksi</b>\n\n"
+        f"Jenis    : <b>{bersihkan(data['jenis'])}</b>\n"
+        f"Nominal  : <b>{format_rupiah(data['nominal'])}</b>\n"
+        f"Deskripsi: {bersihkan(data['deskripsi'])}\n"
+        f"Kategori : {bersihkan(data['kategori'])}\n\n"
         f"Simpan transaksi ini?"
     )
 
@@ -92,33 +97,33 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nama = update.effective_user.first_name
     await update.message.reply_text(
         f"Halo {nama}! 👋\n\n"
-        "Selamat datang di *Bot Buku Kas Studio* 📷\n\n"
+        "Selamat datang di <b>Bot Buku Kas Studio</b> 📷\n\n"
         "Cara pakai:\n"
-        "📸 Kirim *foto nota/struk* → AI baca otomatis\n"
+        "📸 Kirim <b>foto nota/struk</b> → AI baca otomatis\n"
         "✍️ Ketik manual, contoh:\n"
-        "   • `beli galon 5000`\n"
-        "   • `dp wedding klien A 500rb`\n"
-        "   • `bayaran foto wisuda 300000`\n\n"
+        "   • <code>beli galon 5000</code>\n"
+        "   • <code>dp wedding klien A 500rb</code>\n"
+        "   • <code>bayaran foto wisuda 300000</code>\n\n"
         "📊 /laporan → Ringkasan keuangan\n"
         "📋 /riwayat → 5 transaksi terakhir\n"
         "❓ /bantuan → Panduan lengkap",
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
 async def bantuan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "❓ *Panduan Bot Kas Studio*\n\n"
-        "*📸 Kirim Foto Nota:*\n"
+        "❓ <b>Panduan Bot Kas Studio</b>\n\n"
+        "<b>📸 Kirim Foto Nota:</b>\n"
         "Foto struk, nota, kuitansi apapun → AI baca otomatis\n\n"
-        "*✍️ Ketik Manual (format bebas):*\n"
-        "• `beli tinta printer 45000`\n"
-        "• `dp foto wedding 1jt`\n"
-        "• `lunas foto keluarga 350rb`\n"
-        "• `bayar listrik 200000`\n\n"
-        "*Singkatan:* rb/ribu=×1.000 · jt/juta=×1.000.000\n\n"
-        "*Perintah:*\n"
+        "<b>✍️ Ketik Manual (format bebas):</b>\n"
+        "• <code>beli tinta printer 45000</code>\n"
+        "• <code>dp foto wedding 1jt</code>\n"
+        "• <code>lunas foto keluarga 350rb</code>\n"
+        "• <code>bayar listrik 200000</code>\n\n"
+        "<b>Singkatan:</b> rb/ribu=×1.000 · jt/juta=×1.000.000\n\n"
+        "<b>Perintah:</b>\n"
         "/laporan · /riwayat · /start",
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
 async def laporan(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -128,12 +133,12 @@ async def laporan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     saldo = data.get("saldo", 0)
     emoji_saldo = "✅" if saldo >= 0 else "⚠️"
     await update.message.reply_text(
-        f"📊 *Laporan Keuangan Studio*\n\n"
-        f"💰 Pemasukan : *{format_rupiah(masuk)}*\n"
-        f"💸 Pengeluaran: *{format_rupiah(keluar)}*\n"
+        f"📊 <b>Laporan Keuangan Studio</b>\n\n"
+        f"💰 Pemasukan : <b>{format_rupiah(masuk)}</b>\n"
+        f"💸 Pengeluaran: <b>{format_rupiah(keluar)}</b>\n"
         f"{'─'*28}\n"
-        f"{emoji_saldo} Saldo     : *{format_rupiah(saldo)}*",
-        parse_mode="Markdown"
+        f"{emoji_saldo} Saldo     : <b>{format_rupiah(saldo)}</b>",
+        parse_mode="HTML"
     )
 
 async def riwayat(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -141,12 +146,12 @@ async def riwayat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not rows:
         await update.message.reply_text("Belum ada transaksi yang tercatat.")
         return
-    pesan = "📋 *5 Transaksi Terakhir*\n\n"
+    pesan = "📋 <b>5 Transaksi Terakhir</b>\n\n"
     for r in rows[:5]:
         kategori = r[2]
         emoji = "💰" if "Pendapatan" in kategori else "💸"
-        pesan += f"{emoji} {r[3] or kategori}\n   {format_rupiah(r[4])} · {r[1]}\n\n"
-    await update.message.reply_text(pesan, parse_mode="Markdown")
+        pesan += f"{emoji} {bersihkan(r[3] or kategori)}\n   {format_rupiah(r[4])} · {r[1]}\n\n"
+    await update.message.reply_text(pesan, parse_mode="HTML")
 
 
 # ── Foto Handler ──────────────────────────────────────────────────────────────
@@ -160,15 +165,16 @@ async def terima_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if "error" in result:
             await update.message.reply_text(
-                f"⚠️ {result['error']}\n\nCoba ketik manual:\n`beli galon 5000`",
-                parse_mode="Markdown"
+                f"⚠️ {bersihkan(result['error'])}\n\n"
+                f"Coba ketik manual:\n<code>beli galon 5000</code>",
+                parse_mode="HTML"
             )
             return ConversationHandler.END
 
         context.user_data["transaksi_pending"] = result
         await update.message.reply_text(
             buat_pesan_konfirmasi(result),
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=keyboard_konfirmasi()
         )
         return MENUNGGU_KONFIRMASI
@@ -188,13 +194,13 @@ async def terima_teks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         result = analisis_teks(teks)
         if "error" in result:
-            await update.message.reply_text(f"⚠️ {result['error']}", parse_mode="Markdown")
+            await update.message.reply_text(bersihkan(result['error']))
             return ConversationHandler.END
 
         context.user_data["transaksi_pending"] = result
         await update.message.reply_text(
             buat_pesan_konfirmasi(result),
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=keyboard_konfirmasi()
         )
         return MENUNGGU_KONFIRMASI
@@ -216,10 +222,10 @@ async def konfirmasi_simpan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             simpan_transaksi(buat_data_db(data_ai))
             emoji = "💰" if data_ai["jenis"] == "PEMASUKAN" else "💸"
             await update.message.reply_text(
-                f"{emoji} *Transaksi tersimpan!*\n\n"
-                f"{data_ai['deskripsi']} — {format_rupiah(data_ai['nominal'])}\n\n"
-                "Kirim foto atau ketik transaksi berikutnya 👇",
-                parse_mode="Markdown",
+                f"{emoji} <b>Transaksi tersimpan!</b>\n\n"
+                f"{bersihkan(data_ai['deskripsi'])} — {format_rupiah(data_ai['nominal'])}\n\n"
+                f"Kirim foto atau ketik transaksi berikutnya 👇",
+                parse_mode="HTML",
                 reply_markup=ReplyKeyboardMarkup([[]], resize_keyboard=True)
             )
         except Exception as e:
@@ -249,12 +255,10 @@ def main():
 
     init_db()
 
-    # Flask jalan di background thread
     flask_thread = threading.Thread(target=jalankan_flask, daemon=True)
     flask_thread.start()
     logger.info("Flask thread started")
 
-    # Bot jalan di main thread (wajib untuk event loop asyncio)
     app = Application.builder().token(token).build()
 
     conv_handler = ConversationHandler(
