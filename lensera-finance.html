@@ -1135,13 +1135,46 @@ let editId = null;
 let formTipe = 'pemasukan';
 let selectedMonth = '';
 
-function loadAll() {
-  transactions = JSON.parse(localStorage.getItem('lensera_tx') || '[]');
-  transactions.sort((a,b) => new Date(b.tanggal) - new Date(a.tanggal));
+const API_BASE = window.location.origin;
+
+async function loadAll() {
+  // Ambil dari bot Telegram via API
+  try {
+    const [riwayatRes] = await Promise.all([
+      fetch(API_BASE + '/api/riwayat')
+    ]);
+    const riwayatData = await riwayatRes.json();
+
+    // Convert format bot → format Lensera
+    transactions = riwayatData.map((r, i) => {
+      const isIncome = r.kategori && r.kategori.startsWith('Pendapatan');
+      const kategoriClean = r.kategori
+        ? r.kategori.replace(/^Pendapatan - |^Pengeluaran - /, '')
+        : 'Umum';
+      return {
+        id: r.id || (Date.now() + i),
+        tanggal: r.tanggal || new Date().toISOString().slice(0,10),
+        deskripsi: r.keterangan || kategoriClean,
+        tipe: isIncome ? 'pemasukan' : 'pengeluaran',
+        nominal: Math.abs(r.nominal || 0),
+        subkategori: kategoriClean,
+        kategori: kategoriClean,
+        status: 'Lunas',
+        metode: '-',
+        note: ''
+      };
+    });
+    transactions.sort((a,b) => new Date(b.tanggal) - new Date(a.tanggal));
+  } catch(e) {
+    console.error('Gagal ambil data dari bot:', e);
+    // fallback ke localStorage jika API gagal
+    transactions = JSON.parse(localStorage.getItem('lensera_tx') || '[]');
+    transactions.sort((a,b) => new Date(b.tanggal) - new Date(a.tanggal));
+  }
   piutangList = JSON.parse(localStorage.getItem('lensera_piutang') || '[]');
   asetList = JSON.parse(localStorage.getItem('lensera_aset') || '[]');
 }
-function saveTx() { localStorage.setItem('lensera_tx', JSON.stringify(transactions)); }
+function saveTx() { /* data dari bot, tidak perlu save lokal */ }
 function savePiutangAll() { localStorage.setItem('lensera_piutang', JSON.stringify(piutangList)); }
 function saveAsetAll() { localStorage.setItem('lensera_aset', JSON.stringify(asetList)); }
 
@@ -1823,12 +1856,25 @@ function renderAll() {
 // ══════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════
-seedData();
 seedPiutang();
 seedAset();
-loadAll();
-initMonthSelect();
-renderAll();
+
+// Tampilkan loading dulu
+document.querySelector('.app').style.opacity = '0.5';
+
+loadAll().then(() => {
+  document.querySelector('.app').style.opacity = '1';
+  initMonthSelect();
+  renderAll();
+
+  // Auto-refresh setiap 30 detik
+  setInterval(() => {
+    loadAll().then(() => {
+      initMonthSelect();
+      renderAll();
+    });
+  }, 30000);
+});
 </script>
 </body>
 </html>
