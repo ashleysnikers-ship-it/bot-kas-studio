@@ -1354,8 +1354,21 @@ function getData() {
 function initMonthSelect() {
   const sel = document.getElementById('monthSelect');
   const months = [...new Set(transactions.map(t => t.tanggal.slice(0,7)))].sort().reverse();
+  const prevSelected = selectedMonth; // simpan pilihan user sebelumnya
   sel.innerHTML = '<option value="">Semua Periode</option>' + months.map(m => `<option value="${m}">${fmonth(m+'-01')}</option>`).join('');
-  if (months.length) { sel.value = months[0]; selectedMonth = months[0]; }
+  // Kalau user sudah pilih bulan & bulan itu masih ada di data → pertahankan
+  if (prevSelected && months.includes(prevSelected)) {
+    sel.value = prevSelected;
+    selectedMonth = prevSelected;
+  } else if (!prevSelected) {
+    // Pertahankan "Semua Periode" kalau memang itu yang dipilih
+    sel.value = '';
+    selectedMonth = '';
+  } else if (months.length) {
+    // Bulan yang dipilih tidak ada di data (misal hapus semua) → fallback ke terbaru
+    sel.value = months[0];
+    selectedMonth = months[0];
+  }
 }
 function filterByMonth() { selectedMonth = document.getElementById('monthSelect').value; currentPage = 1; renderAll(); }
 
@@ -2010,6 +2023,7 @@ document.querySelector('.app').style.opacity = '0.5';
 
 loadAll().then(() => {
   document.querySelector('.app').style.opacity = '1';
+  selectedMonth = ''; // default: Semua Periode saat pertama load
   initMonthSelect();
   renderAll();
 
