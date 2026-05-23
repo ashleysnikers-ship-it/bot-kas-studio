@@ -5,7 +5,7 @@ import html
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
-    filters, ContextTypes, ConversationHandler
+    filters, ContextTypes
 )
 from flask import Flask, jsonify, render_template
 from ocr import baca_nota_gambar, analisis_teks
@@ -16,8 +16,6 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-MENUNGGU_KONFIRMASI = 1
 
 # ── Flask ─────────────────────────────────────────────────────────────────────
 app_flask = Flask(__name__)
@@ -55,7 +53,6 @@ def format_rupiah(nominal):
     return f"Rp {int(nominal):,}".replace(",", ".")
 
 def bersihkan(teks):
-    """Escape karakter HTML agar aman dikirim via Telegram HTML mode."""
     return html.escape(str(teks))
 
 def buat_data_db(ai_result):
@@ -73,24 +70,6 @@ def buat_data_db(ai_result):
         "nominal": int(ai_result["nominal"])
     }
 
-def buat_pesan_konfirmasi(data):
-    emoji = "💰" if data["jenis"] == "PEMASUKAN" else "💸"
-    # Pakai HTML parse_mode, escape semua teks dari AI
-    return (
-        f"{emoji} <b>Transaksi Terdeteksi</b>\n\n"
-        f"Jenis    : <b>{bersihkan(data['jenis'])}</b>\n"
-        f"Nominal  : <b>{format_rupiah(data['nominal'])}</b>\n"
-        f"Deskripsi: {bersihkan(data['deskripsi'])}\n"
-        f"Kategori : {bersihkan(data['kategori'])}\n\n"
-        f"Simpan transaksi ini?"
-    )
-
-def keyboard_konfirmasi():
-    return ReplyKeyboardMarkup(
-        [["✅ Ya, Simpan", "❌ Batal"]],
-        one_time_keyboard=True, resize_keyboard=True
-    )
-
 
 # ── Commands ──────────────────────────────────────────────────────────────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -99,7 +78,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Halo {nama}! 👋\n\n"
         "Selamat datang di <b>Bot Buku Kas Studio</b> 📷\n\n"
         "Cara pakai:\n"
-        "📸 Kirim <b>foto nota/struk</b> → AI baca otomatis\n"
+        "📸 Kirim <b>foto nota/struk</b> → langsung tersimpan otomatis\n"
         "✍️ Ketik manual, contoh:\n"
         "   • <code>beli galon 5000</code>\n"
         "   • <code>dp wedding klien A 500rb</code>\n"
@@ -114,7 +93,7 @@ async def bantuan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "❓ <b>Panduan Bot Kas Studio</b>\n\n"
         "<b>📸 Kirim Foto Nota:</b>\n"
-        "Foto struk, nota, kuitansi apapun → AI baca otomatis\n\n"
+        "Foto struk, nota, kuitansi apapun → langsung tersimpan!\n\n"
         "<b>✍️ Ketik Manual (format bebas):</b>\n"
         "• <code>beli tinta printer 45000</code>\n"
         "• <code>dp foto wedding 1jt</code>\n"
@@ -156,7 +135,7 @@ async def riwayat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ── Foto Handler ──────────────────────────────────────────────────────────────
 async def terima_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔍 Sedang membaca nota... Tunggu sebentar ya!")
+    await update.message.reply_text("🔍 Membaca nota...")
     try:
         photo = update.message.photo[-1]
         file = await context.bot.get_file(photo.file_id)
@@ -165,84 +144,52 @@ async def terima_foto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if "error" in result:
             await update.message.reply_text(
-                f"⚠️ {bersihkan(result['error'])}\n\n"
-                f"Coba ketik manual:\n<code>beli galon 5000</code>",
+                f"⚠️ {bersihkan(result['error'])}\n\nCoba ketik manual:\n<code>beli galon 5000</code>",
                 parse_mode="HTML"
             )
-            return ConversationHandler.END
+            return
 
-        context.user_data["transaksi_pending"] = result
+        simpan_transaksi(buat_data_db(result))
+        emoji = "💰" if result["jenis"] == "PEMASUKAN" else "💸"
         await update.message.reply_text(
-            buat_pesan_konfirmasi(result),
-            parse_mode="HTML",
-            reply_markup=keyboard_konfirmasi()
+            f"{emoji} <b>Tersimpan!</b>\n\n"
+            f"Jenis    : <b>{bersihkan(result['jenis'])}</b>\n"
+            f"Nominal  : <b>{format_rupiah(result['nominal'])}</b>\n"
+            f"Deskripsi: {bersihkan(result['deskripsi'])}\n"
+            f"Kategori : {bersihkan(result['kategori'])}",
+            parse_mode="HTML"
         )
-        return MENUNGGU_KONFIRMASI
     except Exception as e:
         logger.error(f"Error foto: {e}")
         await update.message.reply_text("❌ Error memproses foto. Coba lagi atau ketik manual.")
-        return ConversationHandler.END
 
 
 # ── Teks Handler ──────────────────────────────────────────────────────────────
 async def terima_teks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     teks = update.message.text.strip()
     if len(teks) < 3:
-        return ConversationHandler.END
+        return
 
-    await update.message.reply_text("🤔 Menganalisis transaksi...")
+    await update.message.reply_text("🤔 Menganalisis...")
     try:
         result = analisis_teks(teks)
         if "error" in result:
             await update.message.reply_text(bersihkan(result['error']))
-            return ConversationHandler.END
+            return
 
-        context.user_data["transaksi_pending"] = result
+        simpan_transaksi(buat_data_db(result))
+        emoji = "💰" if result["jenis"] == "PEMASUKAN" else "💸"
         await update.message.reply_text(
-            buat_pesan_konfirmasi(result),
-            parse_mode="HTML",
-            reply_markup=keyboard_konfirmasi()
+            f"{emoji} <b>Tersimpan!</b>\n\n"
+            f"Jenis    : <b>{bersihkan(result['jenis'])}</b>\n"
+            f"Nominal  : <b>{format_rupiah(result['nominal'])}</b>\n"
+            f"Deskripsi: {bersihkan(result['deskripsi'])}\n"
+            f"Kategori : {bersihkan(result['kategori'])}",
+            parse_mode="HTML"
         )
-        return MENUNGGU_KONFIRMASI
     except Exception as e:
         logger.error(f"Error teks: {e}")
         await update.message.reply_text("❌ Terjadi error. Coba lagi ya.")
-        return ConversationHandler.END
-
-
-# ── Konfirmasi ────────────────────────────────────────────────────────────────
-async def konfirmasi_simpan(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    jawaban = update.message.text
-    if jawaban == "✅ Ya, Simpan":
-        data_ai = context.user_data.get("transaksi_pending")
-        if not data_ai:
-            await update.message.reply_text("⚠️ Data tidak ditemukan. Coba ulang.")
-            return ConversationHandler.END
-        try:
-            simpan_transaksi(buat_data_db(data_ai))
-            emoji = "💰" if data_ai["jenis"] == "PEMASUKAN" else "💸"
-            await update.message.reply_text(
-                f"{emoji} <b>Transaksi tersimpan!</b>\n\n"
-                f"{bersihkan(data_ai['deskripsi'])} — {format_rupiah(data_ai['nominal'])}\n\n"
-                f"Kirim foto atau ketik transaksi berikutnya 👇",
-                parse_mode="HTML",
-                reply_markup=ReplyKeyboardMarkup([[]], resize_keyboard=True)
-            )
-        except Exception as e:
-            logger.error(f"Error simpan: {e}")
-            await update.message.reply_text("❌ Gagal menyimpan. Coba lagi.")
-    else:
-        await update.message.reply_text(
-            "❌ Dibatalkan. Kirim foto atau ketik transaksi baru.",
-            reply_markup=ReplyKeyboardMarkup([[]], resize_keyboard=True)
-        )
-    context.user_data.pop("transaksi_pending", None)
-    return ConversationHandler.END
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.pop("transaksi_pending", None)
-    await update.message.reply_text("Dibatalkan.")
-    return ConversationHandler.END
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -260,25 +207,12 @@ def main():
     logger.info("Flask thread started")
 
     app = Application.builder().token(token).build()
-
-    conv_handler = ConversationHandler(
-        entry_points=[
-            MessageHandler(filters.PHOTO, terima_foto),
-            MessageHandler(filters.TEXT & ~filters.COMMAND, terima_teks),
-        ],
-        states={
-            MENUNGGU_KONFIRMASI: [
-                MessageHandler(filters.Regex("^(✅ Ya, Simpan|❌ Batal)$"), konfirmasi_simpan)
-            ],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("bantuan", bantuan))
     app.add_handler(CommandHandler("laporan", laporan))
     app.add_handler(CommandHandler("riwayat", riwayat))
-    app.add_handler(conv_handler)
+    app.add_handler(MessageHandler(filters.PHOTO, terima_foto))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, terima_teks))
 
     logger.info("Bot polling dimulai...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
