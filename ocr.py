@@ -1,10 +1,7 @@
 import os
-import base64
 import json
 import re
 import google.generativeai as genai
-from PIL import Image
-import io
 
 # Konfigurasi Gemini
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
@@ -49,7 +46,7 @@ Tentukan:
 4. Kategori yang cocok
 
 Panduan:
-- Kata seperti "beli", "bayar", "beli", "keluar", "biaya", "ongkos" → PENGELUARAN
+- Kata seperti "beli", "bayar", "keluar", "biaya", "ongkos" → PENGELUARAN
 - Kata seperti "terima", "dapat", "masuk", "bayaran", "dp", "lunas", "transfer masuk" → PEMASUKAN
 - Kalau ada nama sesi foto (wedding, wisuda, dll) tanpa kata pengeluaran → PEMASUKAN
 
@@ -79,10 +76,8 @@ Kalau tidak bisa dipahami sebagai transaksi keuangan, balas:
 def parse_response(text):
     """Parse JSON response dari Gemini, toleran terhadap format aneh."""
     try:
-        # Coba parse langsung
         return json.loads(text.strip())
     except json.JSONDecodeError:
-        # Coba extract JSON dari dalam teks
         match = re.search(r'\{.*?\}', text, re.DOTALL)
         if match:
             try:
@@ -95,23 +90,18 @@ def parse_response(text):
 def baca_nota_gambar(image_bytes):
     """
     Baca nota dari gambar menggunakan Gemini Vision.
-    
-    Args:
-        image_bytes: bytes dari gambar
-    
-    Returns:
-        dict: {"jenis", "nominal", "deskripsi", "kategori"} atau {"error": "..."}
+    Menerima raw bytes, langsung dikirim ke Gemini tanpa Pillow.
     """
     try:
-        # Buka gambar dengan PIL
-        image = Image.open(io.BytesIO(image_bytes))
-        
-        # Kirim ke Gemini Vision
-        response = model.generate_content([PROMPT_GAMBAR, image])
-        result_text = response.text.strip()
-        
-        return parse_response(result_text)
-    
+        # Kirim langsung sebagai inline data (tidak perlu Pillow)
+        image_part = {
+            "inline_data": {
+                "mime_type": "image/jpeg",
+                "data": image_bytes  # Gemini SDK menerima bytes langsung
+            }
+        }
+        response = model.generate_content([PROMPT_GAMBAR, image_part])
+        return parse_response(response.text.strip())
     except Exception as e:
         return {"error": f"Gagal membaca gambar: {str(e)}"}
 
@@ -119,19 +109,11 @@ def baca_nota_gambar(image_bytes):
 def analisis_teks(teks):
     """
     Analisis teks input manual dari user.
-    
-    Args:
-        teks: string input dari user, misal "beli galon 5000"
-    
-    Returns:
-        dict: {"jenis", "nominal", "deskripsi", "kategori"} atau {"error": "..."}
+    Contoh: "beli galon 5000" → PENGELUARAN
     """
     try:
         prompt = PROMPT_TEKS.format(teks=teks)
         response = model.generate_content(prompt)
-        result_text = response.text.strip()
-        
-        return parse_response(result_text)
-    
+        return parse_response(response.text.strip())
     except Exception as e:
         return {"error": f"Gagal menganalisis teks: {str(e)}"}
