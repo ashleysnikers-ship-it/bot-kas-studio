@@ -625,6 +625,87 @@ header {
 
 /* EXPORT BTN */
 .export-row { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 14px; }
+
+/* ── UPLOAD REKENING ── */
+.upload-zone {
+  border: 2px dashed var(--border2);
+  border-radius: 12px;
+  padding: 40px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--surface2);
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--gold);
+  background: var(--gold-dim);
+}
+.upload-zone input[type=file] {
+  position: absolute; inset: 0;
+  opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.upload-icon { font-size: 40px; margin-bottom: 12px; }
+.upload-title { font-family: var(--head); font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.upload-sub { font-size: 12px; color: var(--text2); }
+
+.import-preview {
+  max-height: 320px; overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-top: 16px;
+}
+.import-preview::-webkit-scrollbar { width: 4px; }
+.import-preview::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+.import-row {
+  display: grid;
+  grid-template-columns: 95px 1fr 120px 110px 36px;
+  align-items: center;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.import-row:last-child { border-bottom: none; }
+.import-row:hover { background: var(--surface2); }
+.import-row.head {
+  background: var(--surface2);
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--text3);
+  position: sticky; top: 0; z-index: 1;
+}
+.import-kat-sel {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 8px;
+  color: var(--text); font-family: var(--body); font-size: 11px;
+  outline: none; width: 100%;
+}
+.import-kat-sel:focus { border-color: var(--gold); }
+.import-check {
+  width: 16px; height: 16px; cursor: pointer; accent-color: var(--gold);
+}
+
+.import-summary {
+  display: flex; gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface2);
+  border-radius: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.import-stat { text-align: center; }
+.import-stat-val { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+.import-stat-lbl { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+.btn.upload-btn {
+  background: linear-gradient(135deg, rgba(74,158,255,0.15), rgba(74,158,255,0.05));
+  border-color: rgba(74,158,255,0.4);
+  color: var(--blue);
+}
+.btn.upload-btn:hover { background: rgba(74,158,255,0.2); border-color: var(--blue); }
 </style>
 </head>
 <body>
@@ -646,6 +727,7 @@ header {
         <select id="monthSelect" onchange="filterByMonth()"></select>
       </div>
       <button class="btn primary" onclick="openModal()">+ Transaksi</button>
+      <button class="btn upload-btn" onclick="openUploadModal()">📤 Upload Rekening</button>
     </div>
   </header>
 
@@ -977,6 +1059,415 @@ header {
     </div>
   </div>
 </div>
+
+<!-- MODAL UPLOAD REKENING BANK -->
+<div class="modal-overlay" id="uploadOverlay" onclick="if(event.target===this)closeUploadModal()">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-title">📤 Import Rekening Koran Mandiri</div>
+    <div id="uploadStep1">
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileSelect(event)">
+        <div class="upload-icon">🏦</div>
+        <div class="upload-title">Drop file Excel rekening di sini</div>
+        <div class="upload-sub">e-Statement Mandiri format .xlsx / .xls</div>
+        <div style="margin-top:12px">
+          <span class="btn" style="pointer-events:none;font-size:11px">Pilih File</span>
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:11px;color:var(--text2);text-align:center">
+        ℹ️ File hanya dibaca di browser — tidak dikirim ke server manapun
+      </div>
+    </div>
+
+    <div id="uploadStep2" style="display:none">
+      <div id="importSummaryBar" class="import-summary"></div>
+      <div style="margin:14px 0 8px;font-size:11px;color:var(--text2)">
+        ✅ Centang transaksi yang mau diimport &nbsp;·&nbsp; Pilih kategori yang sesuai &nbsp;·&nbsp; Transaksi sudah ada sebelumnya otomatis dikecualikan
+      </div>
+      <div class="import-preview" id="importPreview">
+        <div class="import-row head">
+          <span>Tanggal</span>
+          <span>Keterangan</span>
+          <span>Kategori</span>
+          <span>Nominal</span>
+          <span><input type="checkbox" class="import-check" id="checkAll" onchange="toggleCheckAll(this)" checked></span>
+        </div>
+        <div id="importRows"></div>
+      </div>
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn" onclick="resetUpload()">← Upload Ulang</button>
+        <button class="btn" onclick="closeUploadModal()">Batal</button>
+        <button class="btn primary" onclick="doImport()">✅ Import Transaksi Terpilih</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+// UPLOAD REKENING KORAN MANDIRI
+// ══════════════════════════════════════════════════
+
+// Load SheetJS dari CDN
+(function loadSheetJS() {
+  if (window.XLSX) return;
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  document.head.appendChild(s);
+})();
+
+let parsedImportRows = [];
+
+function openUploadModal() {
+  resetUpload();
+  document.getElementById('uploadOverlay').classList.add('open');
+}
+function closeUploadModal() {
+  document.getElementById('uploadOverlay').classList.remove('open');
+}
+function resetUpload() {
+  parsedImportRows = [];
+  document.getElementById('uploadStep1').style.display = '';
+  document.getElementById('uploadStep2').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+}
+
+// Drag & drop
+const uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) processExcelFile(f);
+});
+
+function handleFileSelect(e) {
+  const f = e.target.files[0];
+  if (f) processExcelFile(f);
+}
+
+function processExcelFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      if (!window.XLSX) return alert('Library Excel belum siap, coba lagi sebentar.');
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      parsedImportRows = parseMandiriStatement(rows);
+      renderImportPreview();
+    } catch(err) {
+      alert('Gagal baca file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseMandiriStatement(rows) {
+  const result = [];
+  // Cari baris header transaksi
+  let startRow = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i].map(c => String(c).toLowerCase());
+    if (row.some(c => c.includes('keterangan') || c.includes('remarks'))) {
+      startRow = i + 1;
+      break;
+    }
+  }
+  if (startRow < 0) {
+    alert('Format tidak dikenali. Pastikan ini adalah e-Statement Mandiri.');
+    return [];
+  }
+
+  // Temukan kolom berdasarkan header row
+  const headerRow = rows[startRow - 1].map(c => String(c).toLowerCase());
+  let colTanggal = -1, colKet = -1, colMasuk = -1, colKeluar = -1;
+
+  for (let i = 0; i < headerRow.length; i++) {
+    const h = headerRow[i];
+    if (h.includes('tanggal') || h.includes('date')) colTanggal = i;
+    if (h.includes('keterangan') || h.includes('remarks')) colKet = i;
+    if (h.includes('masuk') || h.includes('incoming')) colMasuk = i;
+    if (h.includes('keluar') || h.includes('outgoing')) colKeluar = i;
+  }
+
+  // Jika kolom tidak ditemukan lewat header, gunakan posisi default e-Statement Mandiri
+  // Biasanya: No | Tanggal | Keterangan | ... | Dana Masuk | Dana Keluar | Saldo
+  // Lewat scan posisi
+  if (colTanggal < 0 || colKet < 0) {
+    for (let i = startRow; i < Math.min(startRow + 5, rows.length); i++) {
+      const r = rows[i];
+      for (let j = 0; j < r.length; j++) {
+        const v = String(r[j]);
+        if (/\d{2} \w+ \d{4}/.test(v) && colTanggal < 0) colTanggal = j;
+      }
+    }
+    colKet = colTanggal + 1 < rows[startRow]?.length ? colTanggal + 1 : -1;
+  }
+
+  // Scan setiap baris data
+  for (let i = startRow; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.every(c => c === '' || c === null)) continue;
+
+    // Ambil tanggal — format "DD Mon YYYY" atau cell yang berisi angka serial Excel
+    let rawDate = String(row[colTanggal] || '').trim();
+    let tanggal = '';
+
+    if (/\d{2} \w+ \d{4}/.test(rawDate)) {
+      // Format: "01 May 2026"
+      const months = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+      const p = rawDate.split(' ');
+      if (p.length >= 3) {
+        tanggal = p[2] + '-' + (months[p[1]] || '01') + '-' + p[0].padStart(2,'0');
+      }
+    } else if (!isNaN(rawDate) && rawDate !== '') {
+      // Excel serial date
+      const d = XLSX.SSF.parse_date_code(Number(rawDate));
+      if (d) tanggal = d.y + '-' + String(d.m).padStart(2,'0') + '-' + String(d.d).padStart(2,'0');
+    }
+
+    if (!tanggal) continue;
+
+    // Keterangan — ambil dari kolom keterangan, skip baris waktu (hh:mm:ss WIB)
+    let ket = '';
+    for (let j = (colKet > 0 ? colKet : 1); j < row.length; j++) {
+      const v = String(row[j] || '').trim();
+      if (v && !/^\d{2}:\d{2}:\d{2}/.test(v) && !/^(Tanggal|Date|No|Keterangan|Dana|Saldo|Remarks)$/i.test(v)) {
+        ket = v;
+        break;
+      }
+    }
+    if (!ket) continue;
+
+    // Cari nominal masuk/keluar
+    let masuk = 0, keluar = 0;
+    for (let j = 0; j < row.length; j++) {
+      const v = String(row[j] || '').trim().replace(/\./g,'').replace(',','.');
+      const num = parseFloat(v);
+      if (!isNaN(num) && num > 0 && j !== colTanggal) {
+        // Heuristik: cek posisi relatif
+        if (colMasuk >= 0 && j === colMasuk) masuk = num;
+        else if (colKeluar >= 0 && j === colKeluar) keluar = num;
+        else if (colMasuk < 0 && colKeluar < 0) {
+          // Fallback: 2 angka besar terakhir sebelum saldo
+          // Cari semua angka besar di baris ini
+        }
+      }
+    }
+
+    // Jika kolom masuk/keluar belum ketemu, scan ulang semua angka besar
+    if (masuk === 0 && keluar === 0) {
+      const bigNums = [];
+      for (let j = 0; j < row.length; j++) {
+        if (j === colTanggal) continue;
+        const raw = String(row[j] || '').replace(/\./g,'').replace(',','.');
+        const num = parseFloat(raw);
+        if (!isNaN(num) && num >= 500) bigNums.push({j, num});
+      }
+      // e-Statement Mandiri: [dana_masuk, dana_keluar, saldo] — saldo biasanya terbesar atau di akhir
+      if (bigNums.length >= 2) {
+        // 2 terdepan kemungkinan masuk/keluar, 1 terakhir saldo
+        const dataAmounts = bigNums.length >= 3 ? bigNums.slice(0, bigNums.length - 1) : bigNums;
+        if (dataAmounts.length === 2) {
+          masuk = dataAmounts[0].num;
+          keluar = dataAmounts[1].num;
+        } else if (dataAmounts.length === 1) {
+          keluar = dataAmounts[0].num; // Assume pengeluaran kalau hanya 1
+        }
+      }
+    }
+
+    const tipe = masuk > 0 ? 'pemasukan' : 'pengeluaran';
+    const nominal = masuk > 0 ? masuk : keluar;
+    if (nominal < 500) continue; // Skip angka kecil / noise
+
+    // Skip biaya admin/transfer kecil (opsional bisa user toggle)
+    const isBiaya = /^biaya (transaksi|transfer|penarikan)/i.test(ket);
+
+    const kategoriAuto = guessKategori(ket, tipe);
+
+    result.push({
+      tanggal,
+      keterangan: ket,
+      tipe,
+      nominal,
+      kategori: kategoriAuto,
+      isBiaya,
+      isDuplicate: isDuplicateTx(tanggal, nominal, ket),
+    });
+  }
+
+  return result;
+}
+
+function isDuplicateTx(tanggal, nominal, ket) {
+  // Cek apakah transaksi serupa sudah ada di data
+  return transactions.some(t =>
+    t.tanggal === tanggal &&
+    Math.abs(t.nominal - nominal) < 1 &&
+    t.deskripsi.toLowerCase().slice(0,20) === ket.toLowerCase().slice(0,20)
+  );
+}
+
+function guessKategori(ket, tipe) {
+  const k = ket.toLowerCase();
+  if (tipe === 'pemasukan') {
+    if (k.includes('transfer') || k.includes('top up') || k.includes('setor')) return 'Pendapatan Lainnya';
+    if (k.includes('shopee') || k.includes('tokopedia') || k.includes('marketplace')) return 'Foto Produk & Commercial';
+    if (k.includes('wedding') || k.includes('nikah') || k.includes('akad')) return 'Foto Wedding/Akad';
+    if (k.includes('wisuda') || k.includes('graduation')) return 'Foto Wisuda';
+    if (k.includes('prewedding') || k.includes('pre wedding')) return 'Foto Prewedding';
+    return 'Pendapatan Lainnya';
+  } else {
+    if (k.includes('shopee') || k.includes('tokopedia') || k.includes('lazada')) return 'Bahan Habis Pakai';
+    if (k.includes('gaji') || k.includes('honor') || k.includes('sdm')) return 'Gaji & SDM';
+    if (k.includes('listrik') || k.includes('pln') || k.includes('air') || k.includes('pdam')) return 'Sewa & Utilitas';
+    if (k.includes('sewa') || k.includes('rent') || k.includes('kos') || k.includes('kontrakan')) return 'Sewa & Utilitas';
+    if (k.includes('internet') || k.includes('wifi') || k.includes('indihome') || k.includes('telkom')) return 'Sewa & Utilitas';
+    if (k.includes('bensin') || k.includes('bbm') || k.includes('spbu') || k.includes('pertamina')) return 'Operasional';
+    if (k.includes('makan') || k.includes('resto') || k.includes('warung') || k.includes('food') || k.includes('cafe') || k.includes('coffee')) return 'Lain-lain';
+    if (k.includes('transfer') || k.includes('tarik') || k.includes('penarikan')) return 'Lain-lain';
+    if (k.includes('dana') || k.includes('gopay') || k.includes('ovo') || k.includes('shopeepay')) return 'Operasional';
+    if (k.includes('pajak') || k.includes('bpjs') || k.includes('pph') || k.includes('ppn')) return 'Pajak & Administrasi';
+    return 'Operasional';
+  }
+}
+
+function renderImportPreview() {
+  document.getElementById('uploadStep1').style.display = 'none';
+  document.getElementById('uploadStep2').style.display = '';
+
+  const rows = parsedImportRows;
+  const totalMasuk = rows.filter(r=>r.tipe==='pemasukan').reduce((s,r)=>s+r.nominal,0);
+  const totalKeluar = rows.filter(r=>r.tipe==='pengeluaran').reduce((s,r)=>s+r.nominal,0);
+  const dupCount = rows.filter(r=>r.isDuplicate).length;
+
+  document.getElementById('importSummaryBar').innerHTML = `
+    <div class="import-stat" style="flex:1">
+      <div class="import-stat-val" style="color:var(--blue)">${rows.length}</div>
+      <div class="import-stat-lbl">Total Transaksi</div>
+    </div>
+    <div class="import-stat" style="flex:1">
+      <div class="import-stat-val" style="color:var(--green)">${rp(totalMasuk)}</div>
+      <div class="import-stat-lbl">Dana Masuk</div>
+    </div>
+    <div class="import-stat" style="flex:1">
+      <div class="import-stat-val" style="color:var(--red)">${rp(totalKeluar)}</div>
+      <div class="import-stat-lbl">Dana Keluar</div>
+    </div>
+    <div class="import-stat" style="flex:1">
+      <div class="import-stat-val" style="color:var(--text2)">${dupCount}</div>
+      <div class="import-stat-lbl">Sudah Ada</div>
+    </div>
+  `;
+
+  const katOptions = (tipe) => {
+    const cats = KATEGORI[tipe] || [];
+    return cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  };
+
+  document.getElementById('importRows').innerHTML = rows.map((r, i) => `
+    <div class="import-row ${r.isDuplicate ? 'style="opacity:0.45"' : ''}">
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text2)">${r.tanggal}</span>
+      <span style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.keterangan}">
+        ${r.isBiaya ? '<span style="color:var(--text3);font-size:10px">[biaya admin] </span>' : ''}
+        ${r.keterangan}
+      </span>
+      <select class="import-kat-sel" id="kat_${i}" onchange="parsedImportRows[${i}].kategori=this.value">
+        <optgroup label="— Pemasukan —">${katOptions('pemasukan')}</optgroup>
+        <optgroup label="— Pengeluaran —">${katOptions('pengeluaran')}</optgroup>
+      </select>
+      <span style="font-family:var(--mono);font-size:11px;font-weight:600;text-align:right;color:${r.tipe==='pemasukan'?'var(--green)':'var(--red)'};white-space:nowrap">
+        ${r.tipe==='pemasukan'?'+':'-'}${rp(r.nominal)}
+      </span>
+      <input type="checkbox" class="import-check row-check" data-idx="${i}"
+        ${r.isDuplicate ? '' : 'checked'}
+        ${r.isBiaya ? '' : ''}>
+    </div>
+  `).join('');
+
+  // Set selected kategori
+  rows.forEach((r, i) => {
+    const sel = document.getElementById('kat_' + i);
+    if (sel) {
+      // Pilih opsi yang sesuai
+      for (const opt of sel.options) {
+        if (opt.value === r.kategori) { sel.value = r.kategori; break; }
+      }
+    }
+  });
+}
+
+function toggleCheckAll(cb) {
+  document.querySelectorAll('.row-check').forEach(c => { c.checked = cb.checked; });
+}
+
+function doImport() {
+  const checkedIdxs = [...document.querySelectorAll('.row-check:checked')].map(c => parseInt(c.dataset.idx));
+  if (checkedIdxs.length === 0) return alert('Pilih minimal 1 transaksi untuk diimport!');
+
+  const imported = checkedIdxs.map(i => {
+    const r = parsedImportRows[i];
+    const katSel = document.getElementById('kat_' + i);
+    const kategori = katSel ? katSel.value : r.kategori;
+    // Tentukan tipe dari kategori yang dipilih
+    const tipe = KATEGORI.pemasukan.includes(kategori) ? 'pemasukan' : 'pengeluaran';
+    return {
+      id: Date.now() + i + Math.random(),
+      tanggal: r.tanggal,
+      deskripsi: r.keterangan,
+      tipe: tipe,
+      nominal: r.nominal,
+      subkategori: kategori,
+      kategori: kategori,
+      status: 'Lunas',
+      metode: 'Transfer',
+      note: 'Import rekening Mandiri',
+      source: 'bank_import'
+    };
+  });
+
+  // Gabung ke transactions (simpan ke localStorage sebagai override/tambahan)
+  const existingLocal = JSON.parse(localStorage.getItem('lensera_imported') || '[]');
+  const newLocal = [...existingLocal, ...imported];
+  localStorage.setItem('lensera_imported', JSON.stringify(newLocal));
+
+  // Tambahkan ke transactions array yang aktif
+  transactions = [...imported, ...transactions];
+  transactions.sort((a,b) => new Date(b.tanggal) - new Date(a.tanggal));
+
+  closeUploadModal();
+  initMonthSelect();
+  renderAll();
+
+  // Notif sukses
+  setTimeout(() => {
+    const notifWrap = document.getElementById('notifWrap');
+    const n = document.createElement('div');
+    n.className = 'notif good fade-in';
+    n.innerHTML = `<span>✅</span><div><strong>${imported.length} transaksi berhasil diimport</strong> dari rekening koran Mandiri. Data sudah diperbarui di semua chart & laporan.</div>`;
+    notifWrap.prepend(n);
+  }, 300);
+}
+
+// ── Patch loadAll agar data import bank tetap ada setelah refresh ──
+const _origLoadAll = loadAll;
+loadAll = async function() {
+  await _origLoadAll();
+  // Merge data import bank dari localStorage
+  const imported = JSON.parse(localStorage.getItem('lensera_imported') || '[]');
+  if (imported.length > 0) {
+    // Hindari duplikat berdasarkan id
+    const existingIds = new Set(transactions.map(t => t.id));
+    const newImported = imported.filter(t => !existingIds.has(t.id));
+    transactions = [...newImported, ...transactions];
+    transactions.sort((a,b) => new Date(b.tanggal) - new Date(a.tanggal));
+  }
+};
+</script>
 
 <script>
 // ══════════════════════════════════════════════════
