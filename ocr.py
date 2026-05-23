@@ -7,57 +7,54 @@ from groq import Groq
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
-PROMPT_GAMBAR = """Kamu adalah asisten keuangan studio foto yang bertugas membaca nota/struk/kuitansi.
+PROMPT_GAMBAR = """Kamu adalah asisten keuangan studio foto milik ANGGI HARIADI.
 
-Analisis gambar ini dan ekstrak informasi transaksi keuangan. Tentukan:
-1. Jenis transaksi: PEMASUKAN atau PENGELUARAN
-2. Nominal uang (angka saja, tanpa titik/koma/Rp)
-3. Deskripsi singkat transaksi (max 50 karakter)
-4. Kategori yang cocok
+Analisis gambar nota/struk/kuitansi ini dan tentukan jenis transaksi berdasarkan aturan berikut:
+
+ATURAN UTAMA untuk struk transfer bank:
+- Kalau "ANGGI HARIADI" ada di bagian REKENING SUMBER / pengirim → PENGELUARAN (uang keluar)
+- Kalau "ANGGI HARIADI" ada di bagian PENERIMA / tujuan → PEMASUKAN (uang masuk)
+- Kalau tidak ada nama ANGGI HARIADI → tentukan dari konteks (nota belanja = PENGELUARAN, bukti bayar klien = PEMASUKAN)
+
+ATURAN untuk nota/struk lain:
+- Nota belanja, struk toko, tagihan = PENGELUARAN
+- Bukti pembayaran dari klien, DP, pelunasan foto = PEMASUKAN
+
+Ekstrak juga:
+- Nominal: gunakan Total Transaksi (bukan nominal transfer saja, karena sudah termasuk biaya admin)
+- Deskripsi singkat (max 50 karakter)
+- Kategori yang cocok
 
 Panduan kategori:
-- PEMASUKAN: Foto Wedding, Foto Wisuda, Foto Produk, Foto Keluarga, DP Booking, Pelunasan, Transfer Masuk, Payroll, dll
-- PENGELUARAN: Beli Alat, Operasional, Konsumsi, Transport, Cetak Foto, Software, Galon/Air, Listrik, dll
+- PEMASUKAN: Foto Wedding, Foto Wisuda, Foto Produk, Foto Keluarga, DP Booking, Pelunasan, Transfer Masuk, Payroll
+- PENGELUARAN: Beli Alat, Operasional, Konsumsi, Transport, Cetak Foto, Software, Galon/Air, Listrik, Transfer Keluar
 
 Balas HANYA dalam format JSON ini (tanpa teks lain, tanpa markdown):
 {"jenis":"PEMASUKAN","nominal":50000,"deskripsi":"deskripsi singkat","kategori":"nama kategori"}
 
-Kalau gambar bukan nota/struk atau tidak ada angka yang jelas, balas:
-{"error":"Gambar tidak terbaca sebagai nota/struk. Silakan kirim gambar lebih jelas atau ketik manual."}"""
+Kalau gambar tidak jelas atau bukan nota/struk:
+{"error":"Gambar tidak terbaca. Silakan kirim gambar lebih jelas atau ketik manual."}"""
 
-PROMPT_TEKS = """Kamu adalah asisten keuangan studio foto yang bertugas menganalisis teks transaksi keuangan.
+PROMPT_TEKS = """Kamu adalah asisten keuangan studio foto milik ANGGI HARIADI.
 
 Teks dari pengguna: "{teks}"
 
-Tentukan:
-1. Jenis transaksi: PEMASUKAN atau PENGELUARAN
-2. Nominal uang (angka saja, tanpa titik/koma/Rp)
-3. Deskripsi singkat (max 50 karakter)
-4. Kategori yang cocok
-
-Panduan:
-- Kata seperti "beli", "bayar", "keluar", "biaya", "ongkos" → PENGELUARAN
-- Kata seperti "terima", "dapat", "masuk", "bayaran", "dp", "lunas", "transfer masuk", "payroll" → PEMASUKAN
-- Kalau ada nama sesi foto (wedding, wisuda, dll) tanpa kata pengeluaran → PEMASUKAN
-
-Contoh:
-- "beli galon 5000" → PENGELUARAN, 5000, "Beli Galon", "Operasional"
-- "dp wedding klien A 500rb" → PEMASUKAN, 500000, "DP Wedding Klien A", "DP Booking"
-- "cetak foto 75000" → PENGELUARAN, 75000, "Cetak Foto", "Cetak Foto"
-- "bayaran foto wisuda 300000" → PEMASUKAN, 300000, "Bayaran Foto Wisuda", "Foto Wisuda"
+Tentukan jenis transaksi:
+- Kata seperti "beli", "bayar", "keluar", "biaya", "ongkos", "transfer ke", "kirim ke" → PENGELUARAN
+- Kata seperti "terima", "dapat", "masuk", "bayaran", "dp", "lunas", "dibayar", "transfer dari" → PEMASUKAN
+- Nama sesi foto (wedding, wisuda, keluarga, produk) tanpa kata pengeluaran → PEMASUKAN
 
 Ubah singkatan: rb/ribu=x1000, jt/juta=x1000000, k=x1000
 
 Balas HANYA dalam format JSON ini (tanpa teks lain, tanpa markdown):
 {"jenis":"PEMASUKAN","nominal":50000,"deskripsi":"deskripsi singkat","kategori":"nama kategori"}
 
-Kalau tidak bisa dipahami sebagai transaksi keuangan, balas:
-{"error":"Tidak bisa memahami sebagai transaksi. Contoh: beli galon 5000 atau dp wedding 500rb"}"""
+Kalau tidak bisa dipahami sebagai transaksi:
+{"error":"Tidak bisa memahami. Contoh: beli galon 5000 atau dp wedding 500rb"}"""
 
 
 def parse_response(text):
     text = text.strip()
-    # Hapus markdown code block kalau ada
     text = re.sub(r'```(?:json)?', '', text).strip()
     try:
         return json.loads(text)
@@ -72,7 +69,6 @@ def parse_response(text):
 
 
 def baca_nota_gambar(image_bytes):
-    """Baca nota dari gambar menggunakan Groq Vision (Llama 4 Scout)."""
     try:
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
         response = client.chat.completions.create(
@@ -82,9 +78,7 @@ def baca_nota_gambar(image_bytes):
                 "content": [
                     {
                         "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{image_b64}"
-                        }
+                        "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}
                     },
                     {
                         "type": "text",
@@ -95,14 +89,12 @@ def baca_nota_gambar(image_bytes):
             max_tokens=300,
             temperature=0.1
         )
-        result_text = response.choices[0].message.content
-        return parse_response(result_text)
+        return parse_response(response.choices[0].message.content)
     except Exception as e:
         return {"error": f"Gagal membaca gambar: {str(e)}"}
 
 
 def analisis_teks(teks):
-    """Analisis teks input manual dari user."""
     try:
         response = client.chat.completions.create(
             model=MODEL,
@@ -113,7 +105,6 @@ def analisis_teks(teks):
             max_tokens=200,
             temperature=0.1
         )
-        result_text = response.choices[0].message.content
-        return parse_response(result_text)
+        return parse_response(response.choices[0].message.content)
     except Exception as e:
         return {"error": f"Gagal menganalisis teks: {str(e)}"}
