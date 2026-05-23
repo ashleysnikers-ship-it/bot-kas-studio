@@ -250,8 +250,8 @@ def main():
     token = os.environ.get("TELEGRAM_TOKEN")
     if not token:
         raise ValueError("TELEGRAM_TOKEN tidak ditemukan!")
-    if not os.environ.get("GEMINI_API_KEY"):
-        raise ValueError("GEMINI_API_KEY tidak ditemukan!")
+    if not os.environ.get("GROQ_API_KEY"):
+        raise ValueError("GROQ_API_KEY tidak ditemukan!")
 
     init_db()
 
