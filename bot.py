@@ -236,11 +236,11 @@ def main():
 
     logger.info("Bot polling dimulai...")
     while True:
-    try:
-        app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
-    except Exception as e:
-        logger.error(f"Polling error: {e}, restarting in 10 seconds...")
-        time.sleep(10)
+        try:
+            app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+        except Exception as e:
+            logger.error(f"Polling error: {e}, restarting in 10 seconds...")
+            time.sleep(10)
 
 if __name__ == "__main__":
     main()
