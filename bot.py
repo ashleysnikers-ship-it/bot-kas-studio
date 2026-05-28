@@ -1,6 +1,7 @@
 import os
 import logging
 import threading
+import time
 import html
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -234,7 +235,12 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, terima_teks))
 
     logger.info("Bot polling dimulai...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    while True:
+    try:
+        app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    except Exception as e:
+        logger.error(f"Polling error: {e}, restarting in 10 seconds...")
+        time.sleep(10)
 
 if __name__ == "__main__":
     main()
