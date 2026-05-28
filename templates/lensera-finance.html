@@ -1537,8 +1537,8 @@ function renderTable() {
           <div>${statusBadge}</div>
           <div class="tx-amount ${t.tipe==='pemasukan'?'masuk':'keluar'}">${t.tipe==='pemasukan'?'+':'-'}${rp(t.nominal)}</div>
           <div class="tx-actions">
-            <button class="icon-btn" onclick="editTx(String(${t.id}))" title="Edit">✏️</button>
-            <button class="icon-btn del" onclick="deleteTx(String(${t.id}))" title="Hapus">🗑️</button>
+            <button class="icon-btn" onclick="editTx('${t.id}')" title="Edit">✏️</button>
+            <button class="icon-btn del" onclick="deleteTx('${t.id}')" title="Hapus">🗑️</button>
           </div>
         </div>`;
       }).join('');
