@@ -1160,99 +1160,7 @@ const BADGE_MAP = {
   'Pajak & Administrasi':'operasional','Lain-lain':'operasional'
 };
 
-// ══════════════════════════════════════════════════
-// SEED DATA — Sample Transaksi Studio Foto
-// ══════════════════════════════════════════════════
-function seedData() {
-  const stored = JSON.parse(localStorage.getItem('lensera_tx') || '[]');
-  if (stored.length > 0) return;
-  const raw = [
-    // Mei 2025 Pemasukan
-    ['2025-05-02','Klien Dewi & Raka - Foto Prewedding','pemasukan',3500000,'Paket Premium','Foto Prewedding','Lunas','Transfer'],
-    ['2025-05-03','Klien Sari - Foto Wisuda UI','pemasukan',450000,'Paket Standar','Foto Wisuda','Lunas','QRIS'],
-    ['2025-05-04','Klien Budi - Foto Produk UMKM','pemasukan',1200000,'Foto Produk Katalog','Foto Produk & Commercial','Lunas','Transfer'],
-    ['2025-05-05','Klien Andi & Luna - Foto Maternity','pemasukan',800000,'Sesi Maternity','Foto Maternity & Newborn','Lunas','Cash'],
-    ['2025-05-07','Klien PT Maju Jaya - Event Gathering','pemasukan',4000000,'Event Gathering','Foto Event & Corporate','Lunas','Transfer'],
-    ['2025-05-08','Klien Rina - Foto Wedding Akad','pemasukan',5500000,'Paket Full Day','Foto Wedding/Akad','DP','Transfer'],
-    ['2025-05-09','Editing Album Klien Maret','pemasukan',600000,'Editing Premium','Editing & Retouching','Lunas','Transfer'],
-    ['2025-05-10','Sewa Studio 4 jam - External Fotografer','pemasukan',600000,'Sewa Per Jam','Sewa Studio','Lunas','QRIS'],
-    ['2025-05-12','Klien Hendra - Foto Portrait Keluarga','pemasukan',700000,'Foto Keluarga','Foto Portrait & Keluarga','Lunas','Cash'],
-    ['2025-05-14','Klien Toko Online X - Foto Produk','pemasukan',2200000,'Foto Produk Katalog','Foto Produk & Commercial','Lunas','Transfer'],
-    ['2025-05-15','Klien Wulan - Foto Newborn','pemasukan',650000,'Sesi Newborn','Foto Maternity & Newborn','Lunas','Transfer'],
-    ['2025-05-17','Klien Restoran Y - Food Photography','pemasukan',1800000,'Foto Makanan (Food Photo)','Foto Produk & Commercial','Lunas','Transfer'],
-    ['2025-05-18','Cetak Album Klien Prewedding','pemasukan',750000,'Cetak Album','Cetak & Print Foto','Lunas','Cash'],
-    ['2025-05-20','Klien Fajar & Mega - Foto Prewedding','pemasukan',3200000,'Paket Outdoor','Foto Prewedding','Lunas','Transfer'],
-    ['2025-05-21','Workshop Foto Dasar - 5 Peserta','pemasukan',1250000,'Kursus / Workshop','Pendapatan Lainnya','Lunas','Transfer'],
-    ['2025-05-22','Klien Bambang - Foto Wisuda','pemasukan',480000,'Paket Keluarga','Foto Wisuda','Lunas','QRIS'],
-    ['2025-05-24','Klien Ahmad - Foto Passport','pemasukan',75000,'Foto 4x6','Foto Passport & Dokumen','Lunas','Cash'],
-    ['2025-05-25','Klien CV Maju - Foto Corporate','pemasukan',3000000,'Annual Meeting','Foto Event & Corporate','DP','Transfer'],
-    ['2025-05-28','Sewa Studio Weekend','pemasukan',800000,'Sewa Half Day','Sewa Studio','Lunas','Transfer'],
-    ['2025-05-30','Klien Dita - Foto Keluarga','pemasukan',700000,'Foto Keluarga','Foto Portrait & Keluarga','Lunas','Cash'],
-    // Mei 2025 Pengeluaran
-    ['2025-05-01','Sewa Tempat Studio Mei','pengeluaran',3500000,'Sewa Tempat / Studio','Sewa & Utilitas','Lunas','Transfer'],
-    ['2025-05-01','Gaji Fotografer - Doni','pengeluaran',3000000,'Gaji Fotografer','Gaji & SDM','Lunas','Transfer'],
-    ['2025-05-01','Honor Editor - Tina','pengeluaran',1500000,'Honor Editor','Gaji & SDM','Lunas','Transfer'],
-    ['2025-05-02','Listrik Studio','pengeluaran',450000,'Listrik','Sewa & Utilitas','Lunas','Transfer'],
-    ['2025-05-03','Langganan Adobe CC','pengeluaran',350000,'Langganan Software Editing','Operasional','Lunas','Transfer'],
-    ['2025-05-05','Iklan Instagram Mei','pengeluaran',500000,'Iklan Instagram/Meta','Marketing & Promosi','Lunas','Transfer'],
-    ['2025-05-08','Beli Kertas Foto A3 2 Rim','pengeluaran',280000,'Kertas Foto','Bahan Habis Pakai','Lunas','Cash'],
-    ['2025-05-10','Servis Flash Godox','pengeluaran',200000,'Perawatan & Servis Kamera','Operasional','Lunas','Cash'],
-    ['2025-05-12','Internet Kantor Bulan Ini','pengeluaran',350000,'Internet (Kantor)','Sewa & Utilitas','Lunas','Transfer'],
-    ['2025-05-15','BBM Pemotretan Outdoor','pengeluaran',180000,'BBM / Transportasi Pemotretan','Operasional','Lunas','Cash'],
-    ['2025-05-15','Tinta Printer','pengeluaran',240000,'Tinta Printer','Bahan Habis Pakai','Lunas','Cash'],
-    ['2025-05-17','PPh Final UMKM','pengeluaran',215000,'PPh Final UMKM','Pajak & Administrasi','Lunas','Transfer'],
-    ['2025-05-20','Packaging Amplop & Plastik','pengeluaran',150000,'Amplop / Packaging','Bahan Habis Pakai','Lunas','Cash'],
-    ['2025-05-22','Konsumsi Tim (shooting marathon)','pengeluaran',120000,'Konsumsi Tim','Lain-lain','Lunas','Cash'],
-    ['2025-05-25','Backup HDD Eksternal 2TB','pengeluaran',650000,'Backup Storage/HDD','Operasional','Lunas','Transfer'],
-    ['2025-05-28','Cetak Brosur Promosi','pengeluaran',300000,'Cetak Brosur / Flyer','Marketing & Promosi','Lunas','Transfer'],
-    // April 2025
-    ['2025-04-03','Klien Cinta & Reza - Prewedding','pemasukan',3800000,'Paket All-In','Foto Prewedding','Lunas','Transfer'],
-    ['2025-04-05','Klien Mira - Wisuda ITB','pemasukan',500000,'Paket Standar','Foto Wisuda','Lunas','QRIS'],
-    ['2025-04-10','Klien PT XYZ - Foto Produk','pemasukan',1800000,'Foto Produk Katalog','Foto Produk & Commercial','Lunas','Transfer'],
-    ['2025-04-14','Sewa Studio 3x','pemasukan',1200000,'Sewa Per Jam','Sewa Studio','Lunas','QRIS'],
-    ['2025-04-18','Klien Hani - Maternity','pemasukan',750000,'Sesi Maternity','Foto Maternity & Newborn','Lunas','Transfer'],
-    ['2025-04-22','Klien Event Kampus','pemasukan',2500000,'Seminar / Workshop','Foto Event & Corporate','Lunas','Transfer'],
-    ['2025-04-25','Editing Album April','pemasukan',400000,'Editing Basic','Editing & Retouching','Lunas','Cash'],
-    ['2025-04-01','Sewa Studio April','pengeluaran',3500000,'Sewa Tempat / Studio','Sewa & Utilitas','Lunas','Transfer'],
-    ['2025-04-01','Gaji Tim April','pengeluaran',4500000,'Gaji Fotografer','Gaji & SDM','Lunas','Transfer'],
-    ['2025-04-05','Iklan Online April','pengeluaran',600000,'Iklan Instagram/Meta','Marketing & Promosi','Lunas','Transfer'],
-    ['2025-04-10','Listrik & Internet','pengeluaran',800000,'Listrik','Sewa & Utilitas','Lunas','Transfer'],
-    ['2025-04-20','Beli Background Baru','pengeluaran',450000,'Beli Background','Aset & Peralatan','Lunas','Transfer'],
-  ];
-  const seeded = raw.map((r,i) => ({
-    id: Date.now()+i,
-    tanggal:r[0], deskripsi:r[1], tipe:r[2], nominal:r[3],
-    subkategori:r[4], kategori:r[5], status:r[6], metode:r[7], note:''
-  }));
-  localStorage.setItem('lensera_tx', JSON.stringify(seeded));
-}
 
-function seedPiutang() {
-  const stored = JSON.parse(localStorage.getItem('lensera_piutang') || '[]');
-  if (stored.length > 0) return;
-  const raw = [
-    {id:1,nama:'Rina & Hasan',jenis:'Wedding/Akad',tanggal:'2025-06-10',total:5500000,dp:2000000,status:'dp',note:'Sisa 3.500.000 dibayar H-1 sebelum sesi'},
-    {id:2,nama:'PT Maju Jaya',jenis:'Event Corporate',tanggal:'2025-06-15',total:4000000,dp:4000000,status:'lunas',note:'Sudah lunas via transfer'},
-    {id:3,nama:'CV Maju',jenis:'Foto Corporate',tanggal:'2025-06-20',total:3000000,dp:1500000,status:'dp',note:'DP 50% masuk 25 Mei'},
-    {id:4,nama:'Klien Yoga & Sinta',jenis:'Prewedding',tanggal:'2025-07-05',total:4200000,dp:0,status:'belum',note:'Booking by chat, belum DP'},
-  ];
-  localStorage.setItem('lensera_piutang', JSON.stringify(raw));
-}
-
-function seedAset() {
-  const stored = JSON.parse(localStorage.getItem('lensera_aset') || '[]');
-  if (stored.length > 0) return;
-  const raw = [
-    {id:1,nama:'Sony A7IV Body',kategori:'Kamera & Body',tanggal:'2024-01-15',harga:28000000,umur:7,kondisi:'Baik'},
-    {id:2,nama:'Sony 35mm f/1.8',kategori:'Lensa',tanggal:'2024-01-15',harga:7500000,umur:10,kondisi:'Baik'},
-    {id:3,nama:'Sony 85mm f/1.8',kategori:'Lensa',tanggal:'2024-03-01',harga:6800000,umur:10,kondisi:'Baik'},
-    {id:4,nama:'Godox AD200Pro x2',kategori:'Lighting & Flash',tanggal:'2023-08-01',harga:4600000,umur:5,kondisi:'Normal'},
-    {id:5,nama:'Manfrotto Tripod Carbon',kategori:'Tripod & Stabilizer',tanggal:'2023-06-10',harga:3200000,umur:8,kondisi:'Baik'},
-    {id:6,nama:'MacBook Pro M3',kategori:'Komputer & Storage',tanggal:'2024-11-01',harga:26000000,umur:5,kondisi:'Baik'},
-    {id:7,nama:'Background Muslin 3x6 (3pcs)',kategori:'Background & Props',tanggal:'2023-09-15',harga:1500000,umur:4,kondisi:'Normal'},
-  ];
-  localStorage.setItem('lensera_aset', JSON.stringify(raw));
-}
 
 // ══════════════════════════════════════════════════
 // STATE
@@ -2037,8 +1945,23 @@ function renderAll() {
 // ══════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════
-seedPiutang();
-seedAset();
+// Bersihkan seed data lama (piutang & aset dummy) jika belum pernah dibersihkan
+// Cek flag 'lensera_seed_cleared' — kalau belum ada, hapus data dummy
+if (!localStorage.getItem('lensera_seed_cleared')) {
+  // Hapus piutang dummy (id 1,2,3,4 adalah seed data)
+  const pData = JSON.parse(localStorage.getItem('lensera_piutang') || '[]');
+  const dummyPiutangIds = [1,2,3,4];
+  const cleanedP = pData.filter(p => !dummyPiutangIds.includes(p.id));
+  localStorage.setItem('lensera_piutang', JSON.stringify(cleanedP));
+  // Hapus aset dummy (id 1-7 adalah seed data)
+  const aData = JSON.parse(localStorage.getItem('lensera_aset') || '[]');
+  const dummyAsetIds = [1,2,3,4,5,6,7];
+  const cleanedA = aData.filter(a => !dummyAsetIds.includes(a.id));
+  localStorage.setItem('lensera_aset', JSON.stringify(cleanedA));
+  // Hapus juga lensera_tx (transaksi dummy dari localStorage lama)
+  localStorage.removeItem('lensera_tx');
+  localStorage.setItem('lensera_seed_cleared', '1');
+}
 
 // Tampilkan loading dulu
 document.querySelector('.app').style.opacity = '0.5';
