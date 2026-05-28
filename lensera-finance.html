@@ -1368,6 +1368,10 @@ function initMonthSelect() {
     // Bulan yang dipilih tidak ada di data (misal hapus semua) → fallback ke terbaru
     sel.value = months[0];
     selectedMonth = months[0];
+  } else {
+    // Tidak ada data sama sekali
+    sel.value = '';
+    selectedMonth = '';
   }
 }
 function filterByMonth() { selectedMonth = document.getElementById('monthSelect').value; currentPage = 1; renderAll(); }
@@ -1607,22 +1611,27 @@ function renderTable() {
     ? `<div class="empty"><div class="e-icon">🔍</div><p>Tidak ada transaksi ditemukan</p></div>`
     : slice.map(t => {
         const bk = BADGE_MAP[t.kategori] || 'operasional';
-        const statusBadge = t.tipe==='pemasukan' ? `<span class="badge badge-pemasukan">${t.status||'Lunas'}</span>` : '';
+        const tipeLabel = t.tipe==='pemasukan'
+          ? `<span style="font-size:10px;font-weight:700;color:var(--green);background:var(--green-dim);padding:2px 8px;border-radius:6px">MASUK</span>`
+          : `<span style="font-size:10px;font-weight:700;color:var(--red);background:var(--red-dim);padding:2px 8px;border-radius:6px">KELUAR</span>`;
+        const statusBadge = t.tipe==='pemasukan'
+          ? `<span class="badge badge-pemasukan">${t.status||'Lunas'}</span>`
+          : `<span style="font-size:10px;color:var(--text3)">—</span>`;
         return `<div class="tx-row fade-in">
           <div class="tx-date">${fdate(t.tanggal)}</div>
           <div>
             <div class="tx-desc-main">${t.deskripsi}</div>
             <div class="tx-desc-sub">${t.subkategori||''} ${t.metode?'· '+t.metode:''}</div>
           </div>
-          <div>${statusBadge}</div>
+          <div>${tipeLabel}</div>
           <div>
             ${t.tipe==='pengeluaran'?`<span class="badge badge-${bk}">${t.kategori}</span>`:`<span style="font-size:11px;color:var(--text2)">${t.kategori}</span>`}
           </div>
-          <div style="font-size:11px;color:var(--text2)">${t.metode||''}</div>
+          <div>${statusBadge}</div>
           <div class="tx-amount ${t.tipe==='pemasukan'?'masuk':'keluar'}">${t.tipe==='pemasukan'?'+':'-'}${rp(t.nominal)}</div>
           <div class="tx-actions">
-            <button class="icon-btn" onclick="editTx(${t.id})" title="Edit">✏️</button>
-            <button class="icon-btn del" onclick="deleteTx(${t.id})" title="Hapus">🗑️</button>
+            <button class="icon-btn" onclick="editTx(String(${t.id}))" title="Edit">✏️</button>
+            <button class="icon-btn del" onclick="deleteTx(String(${t.id}))" title="Hapus">🗑️</button>
           </div>
         </div>`;
       }).join('');
@@ -1852,7 +1861,7 @@ function renderKategori() {
 // ══════════════════════════════════════════════════
 function openModal(id=null) {
   editId=id;
-  const t = id ? transactions.find(x=>x.id===id) : null;
+  const t = id ? transactions.find(x=>String(x.id)===String(id)) : null;
   document.getElementById('modalTitle').textContent = id?'✏️ Edit Transaksi':'+ Catat Transaksi';
   setTipe(t?.tipe||'pemasukan');
   document.getElementById('fDate').value = t?.tanggal||new Date().toISOString().slice(0,10);
@@ -1901,18 +1910,31 @@ function saveTransaction() {
   const note=document.getElementById('fNote').value.trim();
   if(!tanggal||!nominal||!deskripsi||!kategori) return alert('Lengkapi semua field yang wajib!');
   if(editId){
-    const idx=transactions.findIndex(t=>t.id===editId);
+    const idx=transactions.findIndex(t=>String(t.id)===String(editId));
     if(idx>=0) transactions[idx]={...transactions[idx],tanggal,nominal,deskripsi,tipe:formTipe,kategori,subkategori,status,metode,note};
+    // Jika transaksi dari bank import → update localStorage
+    const importedData = JSON.parse(localStorage.getItem('lensera_imported')||'[]');
+    const iIdx = importedData.findIndex(t=>String(t.id)===String(editId));
+    if(iIdx>=0){ importedData[iIdx]={...importedData[iIdx],tanggal,nominal,deskripsi,tipe:formTipe,kategori,subkategori,status,metode,note}; localStorage.setItem('lensera_imported',JSON.stringify(importedData)); }
   } else {
-    transactions.unshift({id:Date.now(),tanggal,nominal,deskripsi,tipe:formTipe,kategori,subkategori,status,metode,note});
+    const newTx = {id:'manual_'+Date.now(),tanggal,nominal,deskripsi,tipe:formTipe,kategori,subkategori,status,metode,note,source:'manual'};
+    transactions.unshift(newTx);
+    // Simpan transaksi manual ke localStorage agar persist
+    const importedData = JSON.parse(localStorage.getItem('lensera_imported')||'[]');
+    importedData.unshift(newTx);
+    localStorage.setItem('lensera_imported',JSON.stringify(importedData));
   }
-  saveTx(); closeModal(); renderAll();
+  closeModal(); renderAll();
 }
 
 function deleteTx(id) {
   if(!confirm('Hapus transaksi ini?')) return;
-  transactions=transactions.filter(t=>t.id!==id);
-  saveTx(); renderAll();
+  transactions=transactions.filter(t=>String(t.id)!==String(id));
+  // Hapus juga dari localStorage jika ada
+  const importedData = JSON.parse(localStorage.getItem('lensera_imported')||'[]');
+  const filtered = importedData.filter(t=>String(t.id)!==String(id));
+  if(filtered.length !== importedData.length) localStorage.setItem('lensera_imported',JSON.stringify(filtered));
+  renderAll();
 }
 function editTx(id) { openModal(id); }
 
@@ -2112,11 +2134,38 @@ function parseMandiriStatement(rows) {
     let rawDate = String(row[colTanggal >= 0 ? colTanggal : 1] || '').trim();
     let tanggal = '';
     if (/\d{2} \w+ \d{4}/.test(rawDate)) {
-      const months = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+      // Format: "15 Jan 2025" atau "15 January 2025"
+      const monthMap = {
+        Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',
+        Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12',
+        januari:'01',februari:'02',maret:'03',april:'04',mei:'05',juni:'06',
+        juli:'07',agustus:'08',september:'09',oktober:'10',november:'11',desember:'12'
+      };
       const p = rawDate.split(' ');
-      if (p.length >= 3) tanggal = p[2] + '-' + (months[p[1]] || '01') + '-' + p[0].padStart(2,'0');
-    } else if (!isNaN(rawDate) && rawDate !== '') {
-      try { const d = XLSX.SSF.parse_date_code(Number(rawDate)); if(d) tanggal = d.y+'-'+String(d.m).padStart(2,'0')+'-'+String(d.d).padStart(2,'0'); } catch(e){}
+      if (p.length >= 3) {
+        const mKey = p[1].slice(0,3);
+        tanggal = p[2] + '-' + (monthMap[mKey] || monthMap[p[1].toLowerCase()] || '01') + '-' + p[0].padStart(2,'0');
+      }
+    } else if (/\d{2}\/\d{2}\/\d{4}/.test(rawDate)) {
+      // Format: "15/01/2025"
+      const p = rawDate.split('/');
+      tanggal = p[2] + '-' + p[1].padStart(2,'0') + '-' + p[0].padStart(2,'0');
+    } else if (/\d{4}-\d{2}-\d{2}/.test(rawDate)) {
+      // Format: "2025-01-15"
+      tanggal = rawDate.slice(0,10);
+    } else if (!isNaN(rawDate) && rawDate !== '' && Number(rawDate) > 40000) {
+      // Excel serial date number
+      try {
+        // Excel epoch: Jan 1 1900, serial 1 = Jan 1 1900
+        const serial = Number(rawDate);
+        const utcMs = (serial - 25569) * 86400 * 1000;
+        const d = new Date(utcMs);
+        if (!isNaN(d.getTime())) {
+          tanggal = d.getUTCFullYear() + '-' +
+            String(d.getUTCMonth()+1).padStart(2,'0') + '-' +
+            String(d.getUTCDate()).padStart(2,'0');
+        }
+      } catch(e) {}
     }
     if (!tanggal) continue;
 
@@ -2202,7 +2251,11 @@ function renderImportPreview() {
     <div class="import-stat"><div class="import-stat-val" style="color:var(--text2)">${dupCount}</div><div class="import-stat-lbl">Sudah Ada</div></div>
   `;
 
-  const katOpts = (tipe) => (KATEGORI[tipe]||[]).map(c=>`<option value="${c}">${c}</option>`).join('');
+  const allKatOpts = () => {
+    const masukOpts = KATEGORI.pemasukan.map(c=>`<option value="${c}" data-tipe="pemasukan">📈 ${c}</option>`).join('');
+    const keluarOpts = KATEGORI.pengeluaran.map(c=>`<option value="${c}" data-tipe="pengeluaran">📉 ${c}</option>`).join('');
+    return masukOpts + keluarOpts;
+  };
 
   document.getElementById('importRows').innerHTML = rows.map((r,i) => `
     <div class="import-row" ${r.isDuplicate?'style="opacity:0.45"':''}>
@@ -2211,8 +2264,7 @@ function renderImportPreview() {
         ${r.isBiaya?'<span style="color:var(--text3);font-size:10px">[admin] </span>':''}${r.keterangan}
       </span>
       <select class="import-kat-sel" id="kat_${i}" onchange="parsedImportRows[${i}].kategori=this.value">
-        <optgroup label="Pemasukan">${katOpts('pemasukan')}</optgroup>
-        <optgroup label="Pengeluaran">${katOpts('pengeluaran')}</optgroup>
+        ${allKatOpts()}
       </select>
       <span style="font-family:var(--mono);font-size:11px;font-weight:600;text-align:right;color:${r.tipe==='pemasukan'?'var(--green)':'var(--red)'};white-space:nowrap">
         ${r.tipe==='pemasukan'?'+':'-'}${rp(r.nominal)}
@@ -2237,7 +2289,10 @@ function doImport() {
     const r = parsedImportRows[i];
     const sel = document.getElementById('kat_'+i);
     const kategori = sel ? sel.value : r.kategori;
-    const tipe = KATEGORI.pemasukan.includes(kategori) ? 'pemasukan' : 'pengeluaran';
+    const sel2 = document.getElementById('kat_'+i);
+    const selOpt = sel2 ? sel2.options[sel2.selectedIndex] : null;
+    const tipe = (selOpt && selOpt.dataset.tipe === 'pengeluaran') ? 'pengeluaran' :
+                 KATEGORI.pemasukan.includes(kategori) ? 'pemasukan' : 'pengeluaran';
     return {
       id: 'bank_' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2),
       tanggal: r.tanggal, deskripsi: r.keterangan, tipe, nominal: r.nominal,
@@ -2315,7 +2370,7 @@ function doReset() {
     if (resetBot) {
       // Kosongkan transaksi dari bot juga (hanya di memori, bukan di bot)
       // Bank import sudah dihapus dari localStorage di atas
-      transactions = resetBank ? [] : transactions;
+      transactions = resetBot ? [] : transactions;
       transactions.sort((a,b) => new Date(b.tanggal) - new Date(a.tanggal));
     }
     initMonthSelect();
