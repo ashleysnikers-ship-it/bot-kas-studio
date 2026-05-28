@@ -1122,7 +1122,8 @@ const KATEGORI = {
   ],
   pengeluaran: [
     'Operasional','Aset & Peralatan','Gaji & SDM','Marketing & Promosi',
-    'Sewa & Utilitas','Bahan Habis Pakai','Pajak & Administrasi','Lain-lain'
+    'Sewa & Utilitas','Bahan Habis Pakai','Pajak & Administrasi',
+    'Biaya Admin & Fee','Lain-lain'
   ]
 };
 
@@ -1149,6 +1150,7 @@ const SUBKATEGORI = {
   'Sewa & Utilitas':           ['Sewa Tempat / Studio','Listrik','Air','Internet (Kantor)','Telepon','Parkir Bulanan'],
   'Bahan Habis Pakai':         ['Kertas Foto','Tinta Printer','Plastik Album','Amplop / Packaging','Alat Tulis & Kantor'],
   'Pajak & Administrasi':      ['PPh 21','PPh Final UMKM','PPN','Izin Usaha','Biaya Notaris','Biaya Bank & Admin'],
+  'Biaya Admin & Fee':         ['Fee Transfer Bank','Fee QRIS','Fee ShopeePay','Fee GoPay / OVO / Dana','Fee Tarik Tunai','Biaya Admin Bulanan','Biaya Admin Lainnya'],
   'Lain-lain':                 ['Konsumsi Tim','Pengeluaran Tak Terduga','Dana Darurat Bisnis','Lainnya']
 };
 
@@ -1156,7 +1158,8 @@ const BADGE_MAP = {
   'Operasional':'operasional','Aset & Peralatan':'aset',
   'Gaji & SDM':'gaji','Marketing & Promosi':'operasional',
   'Sewa & Utilitas':'operasional','Bahan Habis Pakai':'operasional',
-  'Pajak & Administrasi':'operasional','Lain-lain':'operasional'
+  'Pajak & Administrasi':'operasional','Biaya Admin & Fee':'operasional',
+  'Lain-lain':'operasional'
 };
 
 
@@ -2131,14 +2134,14 @@ function parseMandiriStatement(rows) {
     const isBiaya = /^biaya (transaksi|transfer|penarikan)/i.test(ket);
     result.push({
       tanggal, keterangan: ket, tipe, nominal,
-      kategori: guessKategoriBank(ket, tipe), isBiaya,
+      kategori: guessKategoriBank(ket, tipe, nominal), isBiaya,
       isDuplicate: transactions.some(t => t.tanggal === tanggal && Math.abs(t.nominal - nominal) < 1)
     });
   }
   return result;
 }
 
-function guessKategoriBank(ket, tipe) {
+function guessKategoriBank(ket, tipe, nominal) {
   const k = ket.toLowerCase();
   if (tipe === 'pemasukan') {
     if (k.includes('wedding') || k.includes('nikah') || k.includes('akad')) return 'Foto Wedding/Akad';
@@ -2146,6 +2149,9 @@ function guessKategoriBank(ket, tipe) {
     if (k.includes('prewedding') || k.includes('pre wedding')) return 'Foto Prewedding';
     return 'Pendapatan Lainnya';
   } else {
+    // Fee / biaya admin — nominal kecil atau kata kunci fee
+    const isFeeNominal = nominal && [1000, 2500, 6500, 1500, 3000, 5000].includes(Math.round(nominal));
+    if (isFeeNominal || k.includes('biaya transaksi') || k.includes('biaya transfer') || k.includes('biaya admin') || k.includes('fee') || k.includes('provisi') || /^biaya (transaksi|transfer|penarikan|qris)/i.test(ket)) return 'Biaya Admin & Fee';
     if (k.includes('gaji') || k.includes('honor')) return 'Gaji & SDM';
     if (k.includes('listrik') || k.includes('pln') || k.includes('pdam') || k.includes('air')) return 'Sewa & Utilitas';
     if (k.includes('sewa') || k.includes('rent') || k.includes('kontrakan')) return 'Sewa & Utilitas';
