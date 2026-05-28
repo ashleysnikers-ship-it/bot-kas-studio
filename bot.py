@@ -23,25 +23,7 @@ app_flask = Flask(__name__)
 
 @app_flask.route("/")
 def dashboard():
-    try:
-        transaksi_rows = ambil_semua_transaksi()
-        saldo_data = hitung_saldo()
-        data = []
-        for r in transaksi_rows:
-            data.append({
-                "id": r[0], "tanggal": r[1], "kategori": r[2],
-                "keterangan": r[3] or "", "nominal": r[4], "timestamp": r[5]
-            })
-        return render_template(
-            "dashboard.html",
-            masuk=saldo_data["masuk"],
-            keluar=saldo_data["keluar"],
-            saldo=saldo_data["saldo"],
-            data=data
-        )
-    except Exception as e:
-        logger.error(f"Dashboard error: {e}")
-        return "<h1>Bot Kas Studio - Running</h1><p>Dashboard sedang dimuat...</p>", 200
+    return send_from_directory('.', 'lensera-finance.html')
 
 @app_flask.route("/lensera-finance.html")
 def lensera():
