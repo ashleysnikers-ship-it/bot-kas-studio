@@ -29,6 +29,10 @@ def dashboard():
 def lensera():
     return send_from_directory('.', 'lensera-finance.html')
 
+@app_flask.route("/logo.png")
+def logo():
+    return send_from_directory('.', 'logo.png')
+
 @app_flask.route("/api/laporan")
 def api_laporan():
     return jsonify(hitung_saldo())
